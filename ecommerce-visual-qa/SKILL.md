@@ -23,7 +23,7 @@ Never use `PASS with gaps`, `PASS pending`, or `probably passed`.
 Before doing anything else, locate and read the client's flow configuration:
 
 ```
-/clients/<client-slug>/config/flow-smoke-basic.json
+ecommerce-visual-qa/config/flow-smoke-basic.json
 ```
 
 Where `<client-slug>` comes from the issue payload (`client_slug` field). If the file does not exist, stop immediately with verdict `BLOCKED` and state the exact missing path. Do not guess flows or hardcode URLs.
@@ -91,7 +91,7 @@ After all flows are complete (or after the first FAIL/BLOCKED), write the output
   "check": "flow-smoke-basic",
   "status": "completed",
   "summary": "<one sentence overall result>",
-  "report_path": "/clients/<client>/projects/<project>/ai/tasks/<task-folder>/reports/flow-smoke-basic.html",
+  "report_path": "ecommerce-visual-qa/reports/flow-smoke-basic.html",
   "findings": [
     {
       "severity": "critical | high | warning | info",
@@ -139,7 +139,7 @@ Required structure:
 <body>
   <h1>Flow Smoke QA — <client> (<environment>)</h1>
   <p><strong>Run date:</strong> <ISO timestamp></p>
-  <p><strong>Config:</strong> /clients/<client>/config/flow-smoke-basic.json</p>
+  <p><strong>Config:</strong> ecommerce-visual-qa/config/flow-smoke-basic.json</p>
   <p><strong>Tool:</strong> Chrome DevTools MCP / Playwright</p>
 
   <!-- Overall verdict card -->
@@ -190,7 +190,7 @@ paperclip-work-product \
   --type document \
   --provider agency-os-support \
   --title "<report.work_product_title from config>" \
-  --url "file:///clients/<client>/projects/<project>/ai/tasks/<task-folder>/reports/flow-smoke-basic.html" \
+  --url "file:///ecommerce-visual-qa/reports/flow-smoke-basic.html" \
   --status ready_for_review \
   --health-status healthy|unhealthy \
   --summary "<one sentence result>" \
@@ -231,7 +231,7 @@ Verdict: PASS | FAIL | BLOCKED
 Target
 - Client: <client_slug>
 - Environment: staging (confirmed)
-- Flow Config: /clients/<client>/config/flow-smoke-basic.json
+- Flow Config: ecommerce-visual-qa/config/flow-smoke-basic.json
 
 Flows Executed
 - <Flow 1 name>: PASS | FAIL at step "<step name>"
