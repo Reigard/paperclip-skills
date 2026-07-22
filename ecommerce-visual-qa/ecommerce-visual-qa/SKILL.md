@@ -20,7 +20,7 @@ Allowed verdicts:
 
 When the run scope specifies `flow-smoke-basic`, the target is an eCommerce or booking site.
 
-1. Locate the client's flow configuration in `ecommerce-visual-qa/config/flow-smoke-basic.json`.
+1. Locate the client's flow configuration in `config/flow-smoke-basic.json`.
 2. Do not rely on static screenshots. You MUST exercise the defined critical flows:
    - Adding a product to the cart.
    - Viewing the cart and validating the total.
