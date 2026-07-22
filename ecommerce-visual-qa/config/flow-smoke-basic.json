@@ -1,0 +1,95 @@
+{
+  "client": "wipptrail",
+  "project": "website",
+  "environment": "staging",
+  "no_real_transactions": true,
+
+  "staging_auth": {
+    "type": "basic",
+    "username_ref": "op://Agency OS/wipptrail.website.staging.http-auth/username",
+    "password_ref": "op://Agency OS/wipptrail.website.staging.http-auth/password"
+  },
+
+  "payment_sandbox": {
+    "expected_indicators": ["Test Mode", "Testmodus", "Sandbox", "stripe.com/v3", "test"],
+    "boundary": "stop_at_render",
+    "note": "Do not click Pay or submit any payment form. Verify only that payment fields render and test mode badge is visible."
+  },
+
+  "report": {
+    "html": "reports/flow-smoke-basic.html",
+    "json": "findings/flow-smoke-basic.json",
+    "create_work_product": true,
+    "work_product_title": "Wipptrail eCommerce Flow Smoke Report"
+  },
+
+  "critical_flows": [
+    {
+      "name": "Events Calendar Checkout",
+      "startUrl": "https://wipp-paperclip.designingit.co/de/kalendar/",
+      "steps": [
+        "Load the calendar page",
+        "Click on an event to view details",
+        "Click add to cart/register",
+        "Navigate to cart page and verify correct total",
+        "Proceed to checkout and verify payment fields render (sandbox)"
+      ],
+      "pass_criteria": [
+        "cart updates successfully",
+        "checkout renders payment fields",
+        "sandbox/test payment mode confirmed",
+        "no console errors",
+        "no PHP notices"
+      ],
+      "fail_criteria": [
+        "fatal error or blank screen",
+        "cart total is missing",
+        "payment fields fail to load",
+        "live payment gateway detected (no test mode badge)"
+      ]
+    },
+    {
+      "name": "Membership Subscription Checkout",
+      "startUrl": "https://wipp-paperclip.designingit.co/de/mitgliedschaft/",
+      "steps": [
+        "Load membership page",
+        "Select a membership option",
+        "Navigate to checkout",
+        "Verify checkout renders payment fields in sandbox mode"
+      ],
+      "pass_criteria": [
+        "membership added to cart",
+        "checkout renders payment fields",
+        "sandbox/test payment mode confirmed",
+        "no console errors"
+      ],
+      "fail_criteria": [
+        "fatal error or timeout",
+        "payment fields fail to load",
+        "live payment gateway detected (no test mode badge)"
+      ]
+    },
+    {
+      "name": "Contact / Registration Form",
+      "startUrl": "https://wipp-paperclip.designingit.co/de/kontakt/",
+      "steps": [
+        "Load the contact page",
+        "Fill form with test data (name, email: qa-test@agency.internal, message)",
+        "Submit the form",
+        "Verify confirmation message appears"
+      ],
+      "pass_criteria": [
+        "form renders correctly",
+        "form accepts test input",
+        "submission succeeds (confirmation message visible)",
+        "no console errors on submit"
+      ],
+      "fail_criteria": [
+        "form does not render",
+        "submit button unresponsive",
+        "no confirmation after submit",
+        "JS error on submit"
+      ]
+    }
+  ]
+}
