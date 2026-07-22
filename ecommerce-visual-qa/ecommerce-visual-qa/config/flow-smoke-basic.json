@@ -4,11 +4,6 @@
   "environment": "staging",
   "no_real_transactions": true,
 
-  "staging_auth": {
-    "type": "basic",
-    "username_env": "WIPPTRAIL_STAGING_USER",
-    "password_env": "WIPPTRAIL_STAGING_PASS"
-  },
 
   "payment_sandbox": {
     "expected_indicators": ["Test Mode", "Testmodus", "Sandbox", "stripe.com/v3", "test"],
