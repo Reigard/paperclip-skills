@@ -6,8 +6,8 @@
 
   "staging_auth": {
     "type": "basic",
-    "username_ref": "op://Agency OS/wipptrail.website.staging.http-auth/username",
-    "password_ref": "op://Agency OS/wipptrail.website.staging.http-auth/password"
+    "username_env": "WIPPTRAIL_STAGING_USER",
+    "password_env": "WIPPTRAIL_STAGING_PASS"
   },
 
   "payment_sandbox": {
