@@ -3,21 +3,23 @@
   "project": "website",
   "environment": "staging",
   "no_real_transactions": true,
-
-
   "payment_sandbox": {
-    "expected_indicators": ["Test Mode", "Testmodus", "Sandbox", "stripe.com/v3", "test"],
+    "expected_indicators": [
+      "Test Mode",
+      "Testmodus",
+      "Sandbox",
+      "stripe.com/v3",
+      "test"
+    ],
     "boundary": "stop_at_render",
     "note": "Do not click Pay or submit any payment form. Verify only that payment fields render and test mode badge is visible."
   },
-
   "report": {
     "html": "reports/flow-smoke-basic.html",
     "json": "findings/flow-smoke-basic.json",
     "create_work_product": true,
     "work_product_title": "Wipptrail eCommerce Flow Smoke Report"
   },
-
   "critical_flows": [
     {
       "name": "Events Calendar Checkout",
