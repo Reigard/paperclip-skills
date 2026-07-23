@@ -1,167 +1,120 @@
 ---
 name: frontend-audit
-description: Run browser-based frontend audit for one or more pages — console errors, failed requests, broken images, desktop/mobile screenshots, Core Web Vitals (lab). Optional Figma comparison when Figma MCP is available. Produces findings/frontend-audit.json and reports/frontend-audit.html. Use with frontend-site-crawl when multi-page scope is required. Read-only — no writes to the site.
-compatibility: "Requires a browser tool (Chrome DevTools MCP, Playwright, or paperclip-qa-visual-check). Figma comparison is optional."
+description: Orchestrator for the Front-end / Browser Health Agent — merges sub-skill partials (console, network, CWV, third-party, a11y, regression), sets verdict, writes findings/frontend-audit.json and reports/frontend-audit.html. Requires chrome-devtools-mcp and Browser Health sub-skills. Use with frontend-site-crawl when multi-page scope is needed.
+compatibility: "Requires chrome-devtools-mcp and Browser Health sub-skills attached to the agent. See paperclip/agents/frontend-browser-health-agent/AGENT.md."
 ---
 
-# Frontend Audit
+# Frontend Audit (orchestrator)
 
-Browser QA gate for frontend health. Audits the page(s) resolved by the issue or by `frontend-site-crawl`.
+**Skill id:** `frontend-audit` — **not** the agent name. This skill **orchestrates** the [Front-end / Browser Health Agent](../../../agents/frontend-browser-health-agent/AGENT.md): it does not replace the focused sub-skills.
 
-**Load `frontend-site-crawl` first** when the issue requires discovering URLs beyond a single page.
+**Agent:** Front-end / Browser Health Agent — real Chrome via **chrome-devtools-mcp**.
+
+**Load `frontend-site-crawl` first** when the issue requires URLs beyond a single page.
+
+## Sub-skills (run via this orchestrator)
+
+| Skill | Partial file |
+| --- | --- |
+| `frontend-browser-console` | `partials/frontend-browser-console.json` |
+| `frontend-network-health` | `partials/frontend-network-health.json` |
+| `frontend-performance-cwv` | `partials/frontend-performance-cwv.json` |
+| `frontend-third-party-scripts` | `partials/frontend-third-party-scripts.json` |
+| `frontend-accessibility-audit` | `partials/frontend-accessibility-audit.json` |
+| `frontend-deploy-regression` | `partials/frontend-deploy-regression.json` |
+
+MCP workflow: [references/chrome-devtools-mcp.md](references/chrome-devtools-mcp.md). Partial schema: [references/partial-contract.md](references/partial-contract.md). Merged output: [references/contract.md](references/contract.md).
 
 ## When to use
 
-- Maintenance check `frontend-audit` or `frontend-basic` extended audit
-- Post-deploy smoke on a URL or crawl set
-- Issue asks for console/network/screenshot/CWV evidence
+- Maintenance check `frontend-audit` or post-deploy browser health smoke
+- All Browser Health sub-skills are attached to the agent
 
-This skill is **read-only**. No form submits, no load tests, no destructive actions.
+Read-only — no form submits, load tests, or destructive actions.
 
 ## Core rule
 
-QA is a gate. If the target is unreachable, tooling is missing for required checks, or material defects exist, return `FAIL` or `BLOCKED`. Never `PASS with gaps`.
+Browser health is a gate. Missing MCP, unreachable target, or material defects → `FAIL` or `BLOCKED`. Never `PASS with gaps`.
 
-Allowed verdicts: `PASS`, `FAIL`, `BLOCKED`, `PARTIAL` (only when issue explicitly scopes partial).
-
-## Inputs required
-
-| Input | Source |
-|---|---|
-| Target URL(s) | Issue body **or** `artifacts/frontend-crawl-manifest.json` |
-| Environment | `development`, `staging`, or `production` |
-| Issue id | Paperclip child issue |
-| Crawl scope | Resolved by `frontend-site-crawl` or issue text (see linked skill) |
-| Figma URL + node | Optional — only when issue includes design reference |
-
-Out-of-scope domains must not be audited. If the issue names one environment/URL, do not flag other environments.
+Verdicts: `PASS`, `FAIL`, `BLOCKED`, `PARTIAL` (issue explicitly scopes partial only).
 
 ## Procedure
 
-### 0) Resolve pages to audit
+### 0) Resolve pages
 
-1. If `artifacts/frontend-crawl-manifest.json` exists → use its `pages[]` list and `scope.mode`.
-2. Else run scope resolution from issue text (same rules as `frontend-site-crawl` § Scope resolution) for a single seed URL.
-3. If scope is ambiguous (e.g. "check the site" with no crawl keyword) → `BLOCKED`, request clarification.
+1. `artifacts/frontend-crawl-manifest.json` → use `pages[]`; copy `scope.mode`, `scope.instruction`, and `scope.rules[]` into merged JSON `scope`
+2. Else resolve scope with the same **flexible rules** parser as `frontend-site-crawl` (composable include rules from issue text)
+3. Ambiguous scope → `BLOCKED`
 
-Default viewports: `1440x1100` (desktop), `390x844` (mobile).
+Legacy manifests (`single_page`, `site_crawl`, `child_pages_only`) — read `pages[]` as-is; optionally normalize to flexible rules internally.
 
-### 1) Verify browser tooling
+### 1) Bootstrap chrome-devtools-mcp
 
-Preferred order:
+Follow [chrome-devtools-mcp.md § Session bootstrap](references/chrome-devtools-mcp.md#session-bootstrap-once-per-audit-run).
 
-1. **Chrome DevTools MCP** — console, network, performance trace, emulation
-2. **`paperclip-qa-visual-check`** — Playwright screenshots + basic pass
-3. **Playwright / browser-mcp** — if available
+If no MCP → `BLOCKED`, write minimal JSON with `tooling.browser_tool_available: false`, stop.
 
-If no browser tool is available → entire check `BLOCKED`. Record in `tooling.browser_tool_available: false`.
-
-Lighthouse is optional enrichment when `lighthouse_audit` or DevTools Lighthouse tools exist.
-
-### 2) Per-page audit loop
+### 2) Per-page loop
 
 For each URL in scope:
 
-1. Navigate and record `final_url`, HTTP status, page title.
-2. Hard gate: 404, login page, password gate, wrong domain → mark page `blocked`, add finding, continue other pages if any.
-3. Capture **desktop + mobile** screenshots → save under `artifacts/frontend-audit/`.
-4. Collect **console errors** (level `error`; include `warning` as `info` findings).
-5. Collect **failed network requests** (4xx/5xx on document, script, stylesheet, image, font).
-6. Detect **broken images** (`naturalWidth === 0` or failed image requests).
-7. Capture **Core Web Vitals proxy** (lab):
-   - LCP, CLS, INP when trace available
-   - Label source: `lab_trace` (Chrome DevTools MCP) or `lighthouse_lab`
-   - Never report field/CrUX data without explicit field source
-8. Do **not** submit forms, add to cart, or run load tests unless a different skill scopes that.
+1. **Desktop viewport** — `emulate` → `navigate_page` → run sub-skills in order:
+   - `frontend-browser-console`
+   - `frontend-network-health`
+   - `frontend-performance-cwv` (trace with reload on desktop)
+   - `frontend-third-party-scripts`
+   - `frontend-accessibility-audit`
+   - `take_screenshot` → `artifacts/frontend-audit/<slug>-desktop.png`
+2. **Mobile viewport** — `emulate` → `navigate_page` (same URL) → repeat console, network, third-party, a11y; performance trace optional; screenshot → `<slug>-mobile.png`
+3. Gate: 404, login, 5xx on primary content → page `status: "blocked"`, findings, continue other URLs
 
-CWV thresholds (lab):
+Each sub-skill writes its partial JSON under `artifacts/frontend-audit/partials/`.
 
-| Metric | Good | Needs improvement | Poor |
-|---|---|---|---|
-| LCP | < 2.5s | 2.5s – 4.0s | > 4.0s |
-| CLS | < 0.1 | 0.1 – 0.25 | > 0.25 |
-| INP | < 200ms | 200ms – 500ms | > 500ms |
+### 3) Regression pass
 
-Poor CWV on production → `high` finding; on dev/staging → `warning` unless issue scopes performance out.
+After all pages audited, run **`frontend-deploy-regression`** once (loads prior `findings/frontend-audit.json` baseline if available). Writes `partials/frontend-deploy-regression.json`.
 
-### 3) Optional Figma comparison (not required)
+### 4) Merge partials
 
-Run **only when all** are true:
+Build merged structure for **`findings/frontend-audit.json`** (ingest shape — see `paperclip-dit-monitoring` [schema.md](../../paperclip-dit-monitoring/paperclip-dit-monitoring/references/schema.md)):
 
-1. Issue includes a Figma design URL and (preferably) node id.
-2. Figma MCP or equivalent is available in the agent session (`get_design_context`, `get_screenshot`, etc.).
+**Per page (`pages[]`)** — merge by URL from partials:
 
-If Figma URL present but MCP unavailable:
+| Partial | Fields merged into `pages[]` |
+| --- | --- |
+| `frontend-browser-console` | `console_error_count`, `console_errors[]` |
+| `frontend-network-health` | `failed_request_count`, `failed_requests[]`, `broken_image_count`, `broken_images[]` |
+| `frontend-performance-cwv` | `core_web_vitals` (incl. `tbt_ms` when captured), `performance` |
+| `frontend-third-party-scripts` | `third_party_scripts[]` |
+| `frontend-accessibility-audit` | `accessibility` |
 
-- Set `figma_comparison.status: "skipped"`
-- Set `skip_reason: "Figma MCP not available"`
-- **Do not** fail the audit for missing Figma tooling.
+Also set page-level `url`, `final_url`, `http_status`, `title`, `status`, `blocked_reason`, screenshot artifact URLs from the orchestrator loop.
 
-When Figma comparison runs:
+**Summary (`summary`)** — aggregate:
 
-1. Capture Figma node screenshot or design context.
-2. Compare implementation screenshots (desktop + mobile) against Figma for layout, spacing, typography, color, imagery, CTA presence.
-3. Record mismatches in `figma_comparison.mismatches[]`:
+- `console_error_pages`, `failed_request_pages`, `broken_image_pages`, `poor_cwv_pages` — count pages with issues from merged pages
+- `third_party_issue_pages` — pages where any `third_party_scripts[].status` is not `ok` / `allowed`
+- `accessibility_issue_pages` — pages where `accessibility.issues[]` is non-empty
+- `regression_count` — length of `baseline_comparison.regressions[]` (or `0` when unavailable)
+- `critical_findings`, `high_findings`, `warning_findings`, `red_flags` — from merged `findings[]`
 
-```json
-{
-  "area": "hero spacing",
-  "expected": "64px padding per Figma",
-  "observed": "~24px on implementation",
-  "severity": "warning"
-}
-```
+**Root fields:**
 
-Material Figma mismatches → `warning` or `high` findings with `category: "frontend"`. Missing Figma MCP → skip section only.
+- `findings[]` — union all partial findings; dedupe by `title` + `page_url`
+- `baseline_comparison` — from `frontend-deploy-regression` partial only; omit when sub-skill blocked/skipped
+- `human_verification[]` — union orchestrator checklist + partial items
+- `tooling` — from session bootstrap (`browser_tool`, `browser_tool_available`, `lighthouse_available` only — never Figma)
+- `verdict` — worst partial verdict + red-flag rules
 
-### 4) Build findings JSON
+Omit keys when a sub-skill did not run, was blocked, or produced empty data — do not send null placeholders.
 
-Write `findings/frontend-audit.json` **before** HTML.
+**Red flags** on important pages: JS console error; CWV degradation vs baseline; HTTP 5xx; public page behind login.
 
-Full schema, field definitions, and verdict rules: [references/contract.md](references/contract.md).
+Write **`findings/frontend-audit.json`** before HTML.
 
-Filled examples: [references/examples.md](references/examples.md).
+### 5) HTML report
 
-Each finding object:
-
-```json
-{
-  "severity": "critical | high | warning | info",
-  "category": "frontend",
-  "title": "<short title>",
-  "evidence": "<what you observed>",
-  "recommendation": "<action>",
-  "owner": "dev | client | agency",
-  "follow_up": true,
-  "red_flag": false,
-  "page_url": "<url or null>",
-  "source": "chrome-devtools-mcp | paperclip-qa-visual-check | playwright | curl",
-  "evidence_type": "browser-smoke | screenshot | performance-trace | http"
-}
-```
-
-**Red flags** (`red_flag: true`):
-
-- Login/password gate on a page that should be public
-- HTTP 5xx on primary content page
-- Poor CWV (lab) on production homepage when performance is in scope
-
-Do **not** red-flag: uptime checks, staging-only content drift, skipped Figma comparison.
-
-### 5) Build HTML report
-
-Write self-contained `reports/frontend-audit.html` with sections:
-
-1. **Header** — verdict, issue, environment, seed URL, scope mode, pages audited/blocked
-2. **Summary table** — error counts, CWV pages, finding severities
-3. **Tooling** — browser tool used, Lighthouse, Figma MCP status
-4. **Pages table** — per URL: status, HTTP, console count, failed requests, CWV
-5. **Screenshots** — desktop + mobile per page (relative paths)
-6. **Findings table** — severity-colored rows
-7. **Figma comparison** — results or skip reason
-8. **Human verification** — mandatory checklist (see below)
-
-HTML template and filled example: [references/examples.md](references/examples.md).
+Self-contained `reports/frontend-audit.html` — header, summary, tooling, baseline, pages table, screenshots, findings, human verification. Template: [references/examples.md](references/examples.md).
 
 ### 6) Publish and close
 
@@ -170,80 +123,26 @@ paperclip-publish-artifact \
   --issue <child-issue> \
   --file <task-folder>/reports/frontend-audit.html \
   --label "Frontend Audit" \
-  --summary "<one line, e.g. '4/5 pages PASS, 1 console error on /about/'>"
-```
-
-Then:
-
-```bash
+  --summary "<one line>"
 paperclip-update-issue-status --issue <child-issue> --status done
 ```
-
-Child is not complete until published artifact + `done` status exist.
 
 ## Output contract
 
 ```txt
 <task-folder>/findings/frontend-audit.json
 <task-folder>/reports/frontend-audit.html
-<task-folder>/artifacts/frontend-audit/*.png   ← screenshots
+<task-folder>/artifacts/frontend-audit/
+<task-folder>/artifacts/frontend-audit/partials/*.json
 ```
-
-Do not write rollup files (`findings.json`, `final-report.html`) — Maintenance Orchestrator owns those.
 
 ## Human verification (mandatory in HTML)
 
-Append `## ⚠️ Human Verification Required` with assignable items:
+Forms/CRM, checkout, analytics firing, cookie consent, interactive widgets — assign Owner/Due. No Figma sign-off (use `agency-visual-qa`).
 
-- Visual design approved by client?
-- Forms submit to correct CRM/email?
-- Checkout/payment flow tested (if applicable)?
-- Analytics (GA4/GTM) firing?
-- Cookie consent correct for jurisdiction?
-- Interactive features (sliders, maps, video) manually verified?
+## Related
 
-Each item: `Owner:` and `Due:` fields.
-
-## Severity guide
-
-| Severity | When |
-|---|---|
-| `critical` | 5xx on public page; auth wall on page that must be public |
-| `high` | Console errors affecting UX; failed critical assets; poor CWV on prod |
-| `warning` | Non-critical console warnings; 404 on secondary asset; poor CWV on dev |
-| `info` | Clean pass evidence; expected staging behaviour |
-
-## CLI fallback (when MCP unavailable)
-
-```bash
-paperclip-qa-visual-check \
-  --issue <ISSUE-ID> \
-  --client-slug <client> \
-  --project-slug <project> \
-  --env <dev|staging|prod> \
-  --url <path-or-url> \
-  --viewports 1440x1100,390x844 \
-  --out-dir <task-folder>/artifacts/frontend-audit
-```
-
-Use CLI output for screenshots; supplement with `curl` for HTTP status only. If CLI cannot capture console/network → mark those checks `blocked` in JSON, do not invent errors.
-
-## Related skills
-
-- **`frontend-site-crawl`** — discover URLs and write `frontend-crawl-manifest.json`
-- **`agency-visual-qa`** — task-level visual QA gate with stricter Figma requirements
-- **`ecommerce-visual-qa`** — transactional flows (cart, checkout)
-
-## Schedule / routine trigger
-
-```json
-{
-  "client_slug": "<client>",
-  "project_slug": "<project>",
-  "environment": "development",
-  "checks": ["frontend-site-crawl", "frontend-audit"],
-  "crawl_scope": "single_page"
-}
-```
-
-When routine includes only homepage with no crawl keywords → run `frontend-audit` alone with `single_page` scope.
+- **Agent overview:** [frontend-browser-health-agent/AGENT.md](../../../agents/frontend-browser-health-agent/AGENT.md)
+- **`frontend-site-crawl`** — URL scope
+- **`paperclip-dit-monitoring`** — DIT ingest mapping
+- **`agency-visual-qa`** — visual/design (separate agent)

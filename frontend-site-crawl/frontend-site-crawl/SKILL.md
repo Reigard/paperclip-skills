@@ -1,101 +1,92 @@
 ---
 name: frontend-site-crawl
-description: Resolve frontend audit URL scope from a seed link and issue instructions — single page, full site crawl, or child pages only. Writes artifacts/frontend-crawl-manifest.json for frontend-audit. Use when the issue may require more than one page, or when crawl scope must be explicit before browser QA runs.
-compatibility: "Requires HTTP access to seed URL. Browser MCP optional for nav link discovery. Pairs with frontend-audit."
+description: Resolve flexible URL scope for the Front-end / Browser Health Agent — parse issue text or routine rules into a composable include list (explicit URLs, path trees, site discovery). Writes artifacts/frontend-crawl-manifest.json before frontend-audit runs chrome-devtools-mcp checks.
+compatibility: "Requires HTTP access to seed URL. Browser MCP optional for link discovery. First step in Browser Health Agent — see paperclip/agents/frontend-browser-health-agent/AGENT.md."
 ---
 
 # Frontend Site Crawl
 
-Determines **which URLs** `frontend-audit` should check. Does not perform console/network/screenshot QA — that is `frontend-audit`.
+Determines **which URLs** the **Front-end / Browser Health Agent** should audit in Chrome. Does not run console/network/CWV checks — the **`frontend-audit` orchestrator** and its sub-skills do that after this manifest exists.
+
+**Agent overview:** [../../agents/frontend-browser-health-agent/AGENT.md](../../agents/frontend-browser-health-agent/AGENT.md)
 
 ## When to use
 
-- Issue may cover multiple pages
+- Issue may cover multiple pages or mixed scope (explicit URLs + section crawl)
 - Routine includes `frontend-site-crawl` before `frontend-audit`
-- Need explicit crawl vs single-page decision recorded in manifest
+- Scope must be recorded in manifest before browser checks run
 
-**Skip this skill** when issue clearly states one URL and no crawl — `frontend-audit` can resolve `single_page` alone.
+**Skip this skill** when issue clearly scopes exactly one URL with no discovery — `frontend-audit` can build the same single-URL manifest internally.
 
 ## Core rule
 
-Scope must be **explicit or safely defaulted**. Ambiguous instructions → `BLOCKED`, no manifest. Never crawl out-of-scope domains or auth-gated areas without credentials.
+Scope is **flexible**: parse the issue (or routine `scope.rules[]`) into composable include rules. Union results, apply excludes and limits. Ambiguous instructions → `BLOCKED`, no manifest. Never crawl out-of-scope domains or auth-gated areas without credentials.
 
 ## Inputs required
 
 | Input | Description |
 |---|---|
-| `seed_url` | URL from issue (homepage or inner page) |
+| `seed_url` | Primary URL from issue (homepage or inner page) |
 | `environment` | `development`, `staging`, or `production` |
-| Issue text | Crawl keywords, prohibitions, child-page requests |
+| Issue text | Pages to include, path trees, site crawl, exclusions |
 | Issue id | Paperclip child issue |
+| Routine `scope` (optional) | Structured `instruction`, `rules[]`, `exclude_patterns[]` |
 
 ## Scope resolution
 
-Apply the decision table in [references/contract.md](references/contract.md) § Scope resolution decision table.
+Apply [references/contract.md](references/contract.md) § Scope resolution (flexible).
 
-Summary:
+**Always write `scope.mode: "flexible"`** with a populated `scope.rules[]` array.
 
-| Situation | Default |
+### Common scenarios → rules
+
+| Scenario | Rules |
 |---|---|
-| Homepage, no crawl mention | `single_page` |
-| Homepage + explicit crawl request | `site_crawl` |
-| Homepage + explicit no-crawl | `single_page` |
-| Inner page, no child mention | `single_page` (that URL only) |
-| Inner page + "child pages" / "subpages" | `child_pages_only` |
-| Ambiguous "check the site" | `BLOCKED` |
+| Homepage only | `[{ action: "include", target: "url", value: "<seed_url>" }]` |
+| Homepage + `/about/` + `/services/` | Three `url` or `path` include rules |
+| `/about/`, `/contact/`, `/blog/`, `/news/` | One `path` rule per path |
+| `/services/` and all child pages | `[{ action: "include", target: "path_tree", value: "/services/", discover_children: true }]` |
+| Full site crawl | `[{ action: "include", target: "site_discovery", value: "seed" }]` |
+| Homepage + all under `/services/` | `url` for homepage + `path_tree` for `/services/` |
 
-**Keyword hints (non-exhaustive):**
-
-- Crawl **on:** `crawl`, `all pages`, `site-wide`, `обход`, `проход по страницам`, `все страницы`
-- Crawl **off:** `homepage only`, `single page`, `do not crawl`, `без обхода`, `только главная`
-- **Child pages:** `child pages`, `subpages`, `descendants`, `under /path/`, `дочерние страницы`
-
-Explicit instruction always overrides default.
+Record a one-line `scope.instruction` summarizing what was parsed.
 
 ## Procedure
 
-### 1) Parse scope from issue
+### 1) Parse scope from issue or routine
 
-Record in manifest `scope.mode`, `scope.mode_source`, `scope.crawl_allowed`, `scope.crawl_instruction`.
+Build `scope.rules[]`, `scope.instruction`, `scope.exclude_patterns[]`.
 
 If `BLOCKED` → write `findings/frontend-site-crawl.json` with verdict `BLOCKED`, stop. Do not run discovery.
 
-### 2) single_page mode
+### 2) Execute rules
 
-Write manifest with seed URL as the only entry in `pages[]`. Skip discovery.
+For each rule in `scope.rules[]`:
 
-### 3) site_crawl mode
+| `target` | Action |
+|---|---|
+| `url` / `path` | Resolve to absolute URL on seed origin; add to candidates |
+| `path_tree` | Add seed path; discover same-origin links under prefix (depth-limited) |
+| `site_discovery` | Discover via sitemap → nav → same-origin links from seed |
 
-Discover internal URLs:
+Sitemap probe:
 
 ```bash
-# Sitemap probe
 curl -s -o /tmp/sitemap.xml -w "%{http_code}" <origin>/sitemap.xml
 ```
-
-Discovery order:
-1. Sitemap (`sitemap.xml`, index sitemaps if present)
-2. Primary navigation links (browser MCP or HTML parse of seed page)
-3. Same-origin links from seed, depth-limited
 
 Apply exclusions and limits from [references/contract.md](references/contract.md) § Discovery rules.
 
 Default limits: `max_pages: 50`, `max_depth: 3`, `same_origin_only: true`.
 
-### 4) child_pages_only mode
-
-1. Include seed URL.
-2. Discover same-origin links whose path **starts with** seed path prefix.
-   - Seed `https://example.com/services/` → include `/services/web-design/`, exclude `/about/`.
-3. Apply same exclusions and limits.
-
-### 5) Normalize URLs
+### 3) Normalize and dedupe
 
 - Absolute URLs with consistent trailing slash policy
 - Strip `#fragment` and tracking params unless issue requires them
 - Deduplicate by normalized path
+- Record `matched_rule_index` and `include_reason` on each `pages[]` row
 
-### 6) Write manifest
+### 4) Write manifest
 
 Write `artifacts/frontend-crawl-manifest.json` per [references/contract.md](references/contract.md).
 
@@ -104,11 +95,11 @@ Write `findings/frontend-site-crawl.json`:
 - `verdict: PASS` when manifest written successfully
 - Include `info` findings for sitemap unavailable, pages excluded by limit, auth-gated paths skipped
 
-Examples for all scope modes: [references/examples.md](references/examples.md).
+Examples: [references/examples.md](references/examples.md).
 
-### 7) Hand off to frontend-audit
+### 5) Hand off to frontend-audit
 
-Comment on child issue or leave manifest in task folder. **`frontend-audit` reads the manifest in its step 0.**
+**`frontend-audit` reads the manifest in step 0** and audits every URL in `pages[]`.
 
 Do not publish HTML from this skill.
 
@@ -123,28 +114,41 @@ No HTML report from this skill.
 
 ## Orchestrator integration
 
-Typical maintenance sequence:
+Typical Browser Health Agent sequence:
 
 ```txt
-1. frontend-site-crawl  → manifest
-2. frontend-audit       → JSON + HTML using manifest pages[]
-3. report-triage        → rollup
+1. frontend-site-crawl           → manifest (which URLs)
+2. frontend-audit (orchestrator) → merge sub-skills → JSON + HTML
+   ├─ frontend-browser-console
+   ├─ frontend-network-health
+   ├─ frontend-performance-cwv
+   ├─ frontend-third-party-scripts
+   ├─ frontend-accessibility-audit
+   └─ frontend-deploy-regression
+3. report-triage                 → rollup
 ```
 
-When routine scope is homepage-only with no crawl keywords, orchestrator may skip step 1 and run `frontend-audit` directly.
+When issue scopes a single URL with no discovery signals, orchestrator may skip step 1.
 
-Example routine payload:
+Example routine payload (preferred):
 
 ```json
 {
   "target_url": "https://paperclip-test.designingit.co/",
   "environment": "development",
   "checks": ["frontend-site-crawl", "frontend-audit"],
-  "crawl_scope": "single_page"
+  "scope": {
+    "instruction": "Homepage, /about/, and all pages under /services/",
+    "rules": [
+      { "action": "include", "target": "url", "value": "https://paperclip-test.designingit.co/" },
+      { "action": "include", "target": "path", "value": "/about/" },
+      { "action": "include", "target": "path_tree", "value": "/services/", "discover_children": true }
+    ]
+  }
 }
 ```
 
-`crawl_scope` values: `single_page`, `site_crawl`, `child_pages_only`, or omit for issue-text resolution.
+**Deprecated:** `crawl_scope: "single_page" | "site_crawl" | "child_pages_only"` — convert to equivalent rules per contract § Legacy preset mapping.
 
 ## Safety rules
 
@@ -156,13 +160,13 @@ Example routine payload:
 
 ## Related skills
 
-- **`frontend-audit`** — browser QA on manifest URLs; produces HTML + JSON reports
-- **`agency-visual-qa`** — task-level visual gate (separate from maintenance crawl)
+- **`frontend-audit`** — orchestrator; merges sub-skills → `findings/frontend-audit.json`
+- **`agency-visual-qa`** — separate visual / design acceptance gate — not used in standard browser health maintenance flow
 
 ## BLOCKED conditions
 
-- Conflicting crawl instructions in issue
-- Ambiguous scope ("check the site" with no crawl yes/no)
+- Cannot parse any include rule from issue or routine
+- Conflicting scope instructions
 - Seed URL unreachable (5xx, DNS failure)
 - Seed behind login and no credentials provided
 - Environment/URL mismatch (issue says production, URL is staging)

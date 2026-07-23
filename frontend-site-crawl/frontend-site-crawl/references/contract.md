@@ -20,13 +20,22 @@
   "seed_url": "string",
   "environment": "development | staging | production",
   "scope": {
-    "mode": "single_page | site_crawl | child_pages_only",
-    "mode_source": "issue_explicit | issue_default | blocked",
-    "crawl_allowed": true,
-    "crawl_instruction": "string | null"
+    "mode": "flexible",
+    "mode_source": "issue_explicit | issue_default | routine",
+    "instruction": "string",
+    "rules": [
+      {
+        "action": "include",
+        "target": "url | path | path_tree | site_discovery",
+        "value": "string",
+        "discover_children": false,
+        "sources": ["sitemap", "nav_links", "same_origin_links"]
+      }
+    ],
+    "exclude_patterns": ["/wp-admin/", "/cart/"]
   },
   "discovery": {
-    "sources_used": ["sitemap", "nav_links", "same_origin_links"],
+    "sources_used": ["sitemap", "nav_links", "same_origin_links", "issue_explicit"],
     "sitemap_url": "string | null",
     "sitemap_available": false
   },
@@ -39,15 +48,16 @@
     {
       "url": "string",
       "normalized_path": "string",
-      "source": "seed | sitemap | nav | internal_link",
+      "source": "seed | issue_explicit | sitemap | nav | internal_link",
       "depth": 0,
-      "include_reason": "string"
+      "include_reason": "string",
+      "matched_rule_index": 0
     }
   ],
   "excluded": [
     {
       "url": "string",
-      "reason": "auth_required | out_of_scope | duplicate | over_limit | disallowed_pattern"
+      "reason": "auth_required | out_of_scope | duplicate | over_limit | disallowed_pattern | exclude_pattern"
     }
   ],
   "stats": {
@@ -58,13 +68,45 @@
 }
 ```
 
-### scope.mode values
+### scope.mode
 
 | Mode | Meaning |
 |---|---|
-| `single_page` | Audit exactly one URL — no link discovery |
-| `site_crawl` | Discover internal pages from seed (homepage typical) |
-| `child_pages_only` | From non-homepage seed, include seed + descendants under path prefix only |
+| `flexible` | **Default for all new runs.** Scope is built from `scope.rules[]` — composable include rules parsed from issue text or routine payload. |
+| `single_page` | **Legacy.** Read-only compat for old manifests. Equivalent to one `include` / `url` rule for `seed_url`. |
+| `site_crawl` | **Legacy.** Read-only compat. Equivalent to one `site_discovery` rule from seed. |
+| `child_pages_only` | **Legacy.** Read-only compat. Equivalent to one `path_tree` rule on seed path with `discover_children: true`. |
+
+New manifests must use `flexible` only. Do not write legacy mode values.
+
+### scope.rules[] — include actions
+
+Each rule adds URLs to scope. **Union** all matching URLs, then dedupe, apply excludes, apply limits.
+
+| `target` | `value` | `discover_children` | Behaviour |
+|---|---|---|---|
+| `url` | Absolute URL or path resolved against seed origin | `false` | Include exactly this URL |
+| `path` | Pathname, e.g. `/about/` | `false` | Include this path on seed origin |
+| `path_tree` | Path prefix, e.g. `/services/` | `true` (required) | Include seed path + same-origin descendants under prefix (depth-limited) |
+| `site_discovery` | `"seed"` or origin URL | n/a | Discover internal pages from seed via sitemap → nav → same-origin links |
+
+Optional per-rule fields:
+
+| Field | Applies to | Description |
+|---|---|---|
+| `sources` | `site_discovery`, `path_tree` when discovering | Subset of `sitemap`, `nav_links`, `same_origin_links` |
+| `max_depth` | `path_tree`, `site_discovery` | Override default depth for this rule only |
+
+`scope.exclude_patterns[]` — path prefixes excluded after all include rules (default list in § Default exclusions).
+
+### scope.instruction
+
+One-line human summary of resolved scope, copied verbatim from issue when possible. Examples:
+
+- `Homepage, /about/, /services/`
+- `/services/ and all child pages under /services/`
+- `Full site crawl from homepage`
+- `https://example.com/about/, /contact/, /blog/, /news/`
 
 ### pages[] fields
 
@@ -72,9 +114,10 @@
 |---|---|
 | `url` | Absolute URL, normalized (no hash, trailing slash policy consistent) |
 | `normalized_path` | Pathname only, e.g. `/about/` |
-| `source` | How the URL was discovered |
-| `depth` | Hops from seed (seed = 0) |
+| `source` | How the URL entered scope |
+| `depth` | Hops from nearest rule anchor (seed / path_tree root = 0) |
 | `include_reason` | Human-readable why this URL is in scope |
+| `matched_rule_index` | Index into `scope.rules[]` that included this URL |
 
 ---
 
@@ -109,40 +152,105 @@ Crawl skill does **not** produce HTML report — `frontend-audit` owns the user-
 
 ---
 
-## Scope resolution decision table
+## Scope resolution (flexible)
 
-Parse issue title + body (case-insensitive). Explicit instruction beats default.
+Parse issue title + body and optional routine `scope` object. Build `scope.rules[]` — **do not** pick from a fixed 3-mode menu.
 
-| Seed URL type | Issue text signals | Result mode |
-|---|---|---|
-| Homepage (`/` or domain root) | No crawl mention | `single_page` — seed only |
-| Homepage | `crawl`, `all pages`, `site-wide`, `обход страниц`, `проход по страницам` | `site_crawl` |
-| Homepage | `homepage only`, `only homepage`, `do not crawl`, `single page`, `только главная`, `без обхода` | `single_page` |
-| Non-homepage path | No child/crawl mention | `single_page` — seed only |
-| Non-homepage path | `child pages`, `subpages`, `descendants`, `дочерние страницы` | `child_pages_only` |
-| Any | Ambiguous ("check the site") without crawl yes/no | `BLOCKED` — ask orchestrator |
-| Any | Conflicting (`crawl` + `homepage only`) | `BLOCKED` — ask orchestrator |
+### Step 1 — Extract signals from issue text
 
-When `frontend-site-crawl` is **not** invoked and issue defaults to single page, `frontend-audit` applies the same table internally.
+| User intent (examples) | Rule(s) to add |
+|---|---|
+| One URL only, no other pages mentioned | `{ action: "include", target: "url", value: "<seed_url>" }` |
+| Named pages: "homepage and /about/ and /services/" | One `url` or `path` rule per named page |
+| Explicit URL list: `/about/, /contact/, /blog/, /news/` | One `path` or `url` rule per entry |
+| "All pages under /services/", "child pages of /services/" | `{ action: "include", target: "path_tree", value: "/services/", discover_children: true }` |
+| "Crawl all pages", "site-wide", "full site" | `{ action: "include", target: "site_discovery", value: "seed" }` |
+| Combine: "homepage + /about/ + all under /services/" | **Multiple rules** — union results |
+| "Do not crawl", "homepage only" | Single `url` rule for seed only; do **not** add discovery rules |
+| "Exclude /blog/" | Add `/blog/` to `exclude_patterns` (does not remove explicit include rules) |
+
+Keyword hints (non-exhaustive):
+
+- **Explicit pages:** page names, path lists, bullet lists of URLs
+- **Path tree:** `child pages`, `subpages`, `descendants`, `under /path/`, `дочерние страницы`
+- **Site discovery:** `crawl`, `all pages`, `site-wide`, `обход`, `проход по страницам`, `все страницы`
+- **Single page:** `homepage only`, `single page`, `do not crawl`, `без обхода`, `только главная`
+
+### Step 2 — Routine payload override (optional)
+
+When routine JSON includes structured scope, use it instead of re-parsing issue text:
+
+```json
+{
+  "target_url": "https://example.com/",
+  "environment": "development",
+  "checks": ["frontend-site-crawl", "frontend-audit"],
+  "scope": {
+    "instruction": "Homepage, /about/, and all pages under /services/",
+    "rules": [
+      { "action": "include", "target": "url", "value": "https://example.com/" },
+      { "action": "include", "target": "path", "value": "/about/" },
+      { "action": "include", "target": "path_tree", "value": "/services/", "discover_children": true }
+    ],
+    "exclude_patterns": ["/wp-admin/"]
+  }
+}
+```
+
+**Deprecated:** `crawl_scope: "single_page" | "site_crawl" | "child_pages_only"` — convert to equivalent rules (see § Legacy preset mapping) when present; prefer `scope.rules[]`.
+
+### Step 3 — Validate
+
+| Condition | Result |
+|---|---|
+| `rules[]` empty after parsing | `BLOCKED` — cannot determine scope |
+| Conflicting instructions unresolved (`crawl all` + `homepage only`) | `BLOCKED` |
+| All include rules resolve to 0 URLs | `BLOCKED` |
+| Parsed scope is clear | `mode: "flexible"`, `mode_source: "issue_explicit"` or `"routine"` |
+
+**Safe default** when issue gives only `seed_url` and no multi-page signals: one `url` rule for seed (same as legacy `single_page`).
+
+When `frontend-site-crawl` is **not** invoked, `frontend-audit` applies the same flexible resolution internally.
 
 ---
 
-## Discovery rules (when mode ≠ single_page)
+## Legacy preset mapping (read + routine compat)
+
+When reading old manifests or deprecated `crawl_scope`:
+
+| Legacy value | Equivalent `flexible` rules |
+|---|---|
+| `single_page` | `[{ action: "include", target: "url", value: "<seed_url>" }]` |
+| `site_crawl` | `[{ action: "include", target: "site_discovery", value: "seed" }]` |
+| `child_pages_only` | `[{ action: "include", target: "path_tree", value: "<seed_path>", discover_children: true }]` |
+
+---
+
+## Rule execution order
+
+1. Resolve each rule independently → candidate URL sets
+2. **Union** candidates
+3. Normalize URLs (absolute, strip `#`, dedupe by path)
+4. Apply `exclude_patterns` and default exclusions → `excluded[]`
+5. Apply `limits.max_pages` / `limits.max_depth` → overflow to `excluded[]` with `over_limit`
+6. Write final `pages[]` with `matched_rule_index` and `include_reason`
+
+---
+
+## Discovery rules (site_discovery and path_tree)
 
 1. **Same origin only** — scheme + host must match seed.
-2. **Sources** (in order):
+2. **Sources** (in order, unless rule `sources` restricts):
    - `sitemap.xml` / `sitemap_index.xml` if HTTP 200
    - Primary nav links from seed page HTML
-   - Same-origin `<a href>` from seed (and child pages for `site_crawl`, depth-limited)
-3. **Always include seed URL** in `pages[]`.
-4. **Exclude by default:**
+   - Same-origin `<a href>` from seed (and child pages when depth allows)
+3. **Default exclusions** (also in `exclude_patterns` unless issue overrides):
    - `/wp-admin/`, `/wp-login.php`, `/cart/`, `/checkout/`, `/my-account/`
    - URLs with `#` fragments (strip fragment)
    - `mailto:`, `tel:`, `javascript:`
    - External domains
    - Binary/media direct links unless issue scopes them
-5. **child_pages_only:** include URLs whose path starts with seed path prefix (e.g. seed `/services/` → `/services/web-design/` yes, `/about/` no).
-6. **Limits:** default `max_pages: 50`, `max_depth: 3` — over-limit URLs go to `excluded[]` with reason `over_limit`.
+4. **Limits:** default `max_pages: 50`, `max_depth: 3`.
 
 ---
 

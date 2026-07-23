@@ -218,7 +218,7 @@ Assemble one JSON object with **Paperclip run fields only**, plus technical `_sy
 | `pending_updates` | WordPress specialist evidence | Plugins with available updates; should match filtered `plugins[]` when array is sent |
 | `plugins` | `findings/wp-health-audit.json`, `findings/wordpress-*.json`, or equivalent evidence | Full plugin inventory — see [WordPress inventory arrays](#wordpress-inventory-arrays-plugins-themes); omit key if not collected |
 | `themes` | Same WordPress / health-audit evidence | Full theme inventory — same section; omit key if not collected |
-| `frontend_audit` | `findings/frontend-audit.json` (+ published screenshot/report artifacts) | Browser QA summary for maintenance modal — see [Frontend audit object](#frontend-audit-object); omit key when `frontend-audit` did not run |
+| `frontend_audit` | `findings/frontend-audit.json` (+ published screenshot/report artifacts) | Merged output from **`frontend-audit` orchestrator** (Browser Health Agent sub-skills) — see [Frontend audit object](#frontend-audit-object); omit key when check did not run |
 | `craft_version` / `ee_version` | Relevant CMS check evidence | When applicable |
 | `red_flags` | All specialist JSON where `red_flag: true` | Array of short titles |
 | `secrets_exposed` | Any specialist or triage finding | Boolean |
@@ -261,25 +261,28 @@ Full multi-item examples: [examples.md](references/examples.md).
 
 ### Frontend audit object (`frontend_audit`)
 
-When the run selected **`frontend-audit`** (alone or with `frontend-site-crawl`), add a **`frontend_audit`** object to the ingest JSON. DIT Monitoring shows it in the maintenance project modal under **Frontend audit** (collapsed by default).
+When the run selected **`frontend-audit`** (Front-end / Browser Health Agent orchestrator — with sub-skills `frontend-browser-console`, `frontend-network-health`, `frontend-performance-cwv`, `frontend-third-party-scripts`, `frontend-accessibility-audit`, `frontend-deploy-regression`), add a **`frontend_audit`** object from merged **`findings/frontend-audit.json`**. See [frontend-browser-health-agent/AGENT.md](../../../agents/frontend-browser-health-agent/AGENT.md).
 
 | Rule | Detail |
 | ---- | ------ |
 | Include `frontend_audit` | Only when `findings/frontend-audit.json` exists in the task folder |
 | Omit when absent | Do **not** send `"frontend_audit": null` or `{}` — omit the key entirely |
-| Source file | Read `findings/frontend-audit.json` → map `target`, `scope`, `summary`, `pages[]`, `findings[]`, `human_verification[]`, `tooling`, `figma_comparison` |
+| Source file | Read `findings/frontend-audit.json` → map `target`, `scope`, `summary`, `pages[]`, `findings[]`, `human_verification[]`, `tooling`, `baseline_comparison` (regression counts → `summary.regression_count` when present) |
 | Verdict map | Specialist `PASS` → `pass`, `FAIL` → `fail`, `BLOCKED` → `unknown`, `PARTIAL` → `warn` |
 | Screenshot URLs | Publish PNGs from `artifacts/frontend-audit/` via `paperclip-publish-artifact`; set `desktop_screenshot_url` / `mobile_screenshot_url` on each page item as full `https://paperclip.designingit.co/artifacts/...` URLs — never relative paths |
 | Specialist reports | Set `frontend_audit.report_url` / `report_json_url` to published `reports/frontend-audit.html` and `findings/frontend-audit.json` artifact URLs when available (separate from rollup `report_url` / `report_json_url`) |
-| Page counts | Copy `scope.pages_requested`, `scope.pages_audited`, `scope.pages_blocked`, and `scope.mode` → `scope_mode` |
+| Page counts | Copy `scope.pages_requested`, `scope.pages_audited`, `scope.pages_blocked`, `scope.mode` → `scope_mode`, and `scope.instruction` → `scope_instruction` when present |
 | Per-page counts | Derive `console_error_count`, `failed_request_count`, and `broken_image_count` from page evidence (prefer explicit counts in JSON; else length of arrays) |
 | Per-page detail arrays | Map `pages[].console_errors`, `failed_requests`, `broken_images` from specialist JSON — **cap at 5 items per array per page**; omit empty arrays |
+| Extended page fields | Map `pages[].core_web_vitals.tbt_ms`, `performance`, `third_party_scripts[]`, `accessibility` when present in merged JSON — omit empty arrays and null-only objects |
+| Summary extended counts | Map `summary.third_party_issue_pages`, `accessibility_issue_pages`, `regression_count` when present; else derive from merged pages / `baseline_comparison.regressions[]` |
+| Baseline comparison | Map `baseline_comparison` from regression partial when present (`available`, `baseline_generated_at`, `baseline_source`, `regressions[]`); omit key when regression sub-skill skipped |
 | Blocked pages | When `status: "blocked"`, include `blocked_reason` from finding evidence when available |
-| Specialist findings | Map root `findings[]` → `frontend_audit.findings[]` with `severity`, `title`, `evidence`, `recommendation`, `page_url`, `owner`, `red_flag`; map specialist `warning` → ingest `medium`; send up to **20** items |
+| Specialist findings | Map root `findings[]` → `frontend_audit.findings[]` with `severity`, `title`, `evidence`, `recommendation`, `page_url`, `owner`, `red_flag`; map specialist `warning` → ingest `medium`; send up to **20** items; preserve `red_flag: true` for JS errors and CWV regressions on important pages |
 | Human verification | Map `human_verification[]` → same shape (`item`, `owner`, `due`); omit key when empty |
-| Tooling | Map `tooling` object (`browser_tool`, `browser_tool_available`, `lighthouse_available`, `figma_mcp_available`); also set top-level `browser_tool` for backward compatibility |
-| Figma block | Map `figma_comparison.status`, `skip_reason`, `figma_url`, `figma_node_id`, `mismatches[]` (and `mismatch_count` when only a count is sent) |
-| Do not duplicate | Rollup `findings[]` stays top 3–5 across all checks; specialist browser QA detail lives in `frontend_audit.findings[]` and `frontend_audit.pages[]` |
+| Tooling | Map `tooling.browser_tool`, `browser_tool_available`, `lighthouse_available` only — **omit `figma_mcp_available`**; also set top-level `browser_tool` for backward compatibility |
+| Figma | **Never send** `figma_comparison` — not part of browser health agent |
+| Do not duplicate | Rollup `findings[]` stays top 3–5 across all checks; specialist browser health detail lives in `frontend_audit.findings[]` and `frontend_audit.pages[]` |
 
 Example minimal object:
 
@@ -289,7 +292,8 @@ Example minimal object:
   "generated_at": "2026-07-21T13:04:12Z",
   "environment": "development",
   "seed_url": "https://example.com/",
-  "scope_mode": "single_page",
+  "scope_mode": "flexible",
+  "scope_instruction": "Homepage only",
   "pages_requested": 1,
   "pages_audited": 1,
   "pages_blocked": 0,
@@ -348,14 +352,7 @@ Example minimal object:
   "tooling": {
     "browser_tool": "chrome-devtools-mcp",
     "browser_tool_available": true,
-    "lighthouse_available": false,
-    "figma_mcp_available": false
-  },
-  "figma_comparison": {
-    "status": "skipped",
-    "skip_reason": "No Figma URL in issue scope.",
-    "mismatch_count": 0,
-    "mismatches": []
+    "lighthouse_available": false
   },
   "browser_tool": "chrome-devtools-mcp",
   "report_url": "https://paperclip.designingit.co/artifacts/SUP-123/ghi-frontend-audit.html",
@@ -582,6 +579,7 @@ Before finishing the heartbeat:
 - [ ] `findings` length ≤ 5, severities valid
 - [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` and/or `themes[]`; keys omitted when inventory was not collected
 - [ ] When `frontend-audit` ran, ingest JSON includes `frontend_audit` built from `findings/frontend-audit.json`; key omitted when the check did not run
+- [ ] `frontend_audit` has **no** `figma_comparison`; tooling omits Figma fields
 - [ ] `frontend_audit.findings[]`, `human_verification[]`, and `tooling` included when present in specialist JSON; per-page issue arrays capped at 5 items; empty arrays omitted
 - [ ] `frontend_audit.pages[].desktop_screenshot_url` / `mobile_screenshot_url` and specialist report URLs are published Paperclip artifact URLs (not relative paths)
 - [ ] `plugin_count` / `pending_updates` consistent with `plugins[]` when the array is present

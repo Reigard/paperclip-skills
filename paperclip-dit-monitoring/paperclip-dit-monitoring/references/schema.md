@@ -169,7 +169,9 @@ Shape mirrors WP-CLI / specialist JSON from the run task folder. Extra keys are 
 
 ## Frontend audit (`frontend_audit`)
 
-Optional browser QA block from the **`frontend-audit`** specialist check. Send it **in the ingest POST body** when `findings/frontend-audit.json` exists. DIT Monitoring shows it in the maintenance modal under **Frontend audit** (collapsed by default).
+Optional **Front-end / Browser Health Agent** block from the **`frontend-audit`** specialist check (real Chrome via chrome-devtools-mcp — console, network, CWV, performance, regressions). Send it **in the ingest POST body** when `findings/frontend-audit.json` exists. DIT Monitoring shows it in the maintenance modal under **Frontend audit** (collapsed by default).
+
+**Not in scope:** Figma / visual design comparison — do **not** send `figma_comparison` in new ingests.
 
 **When to include:**
 
@@ -188,7 +190,8 @@ Rollup `findings[]` remains the cross-check summary (top 3–5). Per-page consol
 | `generated_at` | string (ISO 8601) | no | From specialist JSON |
 | `environment` | string | no | `development`, `staging`, or `production` |
 | `seed_url` | string | no | Seed URL from the audit |
-| `scope_mode` | string | no | `single_page`, `site_crawl`, or `child_pages_only` |
+| `scope_mode` | string | no | `flexible` (new runs). Legacy: `single_page`, `site_crawl`, `child_pages_only` |
+| `scope_instruction` | string | no | Human scope summary from specialist `scope.instruction` or crawl manifest |
 | `pages_requested` | integer | no | From specialist `scope` |
 | `pages_audited` | integer | no | From specialist `scope` |
 | `pages_blocked` | integer | no | From specialist `scope` |
@@ -196,8 +199,8 @@ Rollup `findings[]` remains the cross-check summary (top 3–5). Per-page consol
 | `pages` | array | no | Per-page results — see below |
 | `findings` | array | no | Specialist audit findings — see below |
 | `human_verification` | array | no | Manual follow-up checklist — see below |
-| `tooling` | object | no | Browser/Lighthouse/Figma MCP availability |
-| `figma_comparison` | object | no | Optional Figma status |
+| `tooling` | object | no | Browser/Lighthouse availability (no Figma) |
+| `baseline_comparison` | object | no | Deploy regression vs prior baseline — see below |
 | `browser_tool` | string | no | From specialist `tooling.browser_tool` |
 | `report_url` | string (URL) | no | Published `reports/frontend-audit.html` artifact URL |
 | `report_json_url` | string (URL) | no | Published `findings/frontend-audit.json` artifact URL |
@@ -210,6 +213,9 @@ Rollup `findings[]` remains the cross-check summary (top 3–5). Per-page consol
 | `failed_request_pages` | integer |
 | `broken_image_pages` | integer |
 | `poor_cwv_pages` | integer |
+| `third_party_issue_pages` | integer | Pages with third-party script issues |
+| `accessibility_issue_pages` | integer | Pages with accessibility issues |
+| `regression_count` | integer | From specialist `summary.regression_count` or `baseline_comparison.regressions[]` length |
 | `critical_findings` | integer |
 | `high_findings` | integer |
 | `warning_findings` | integer |
@@ -232,6 +238,9 @@ Rollup `findings[]` remains the cross-check summary (top 3–5). Per-page consol
 | `failed_requests` | array | no | Up to 5 failed request objects — see below |
 | `broken_images` | array | no | Up to 5 broken image objects — see below |
 | `core_web_vitals` | object | no | Lab CWV — see below |
+| `performance` | object | no | Lighthouse / long-task metrics — see below |
+| `third_party_scripts` | array | no | Third-party script audit rows — see below |
+| `accessibility` | object | no | Lighthouse a11y score + issues — see below |
 | `desktop_screenshot_url` | string (URL) | no | Published desktop screenshot artifact |
 | `mobile_screenshot_url` | string (URL) | no | Published mobile screenshot artifact |
 
@@ -242,8 +251,54 @@ Rollup `findings[]` remains the cross-check summary (top 3–5). Per-page consol
 | `lcp_ms` | number | Largest Contentful Paint (ms) |
 | `cls` | number | Cumulative Layout Shift |
 | `inp_ms` | number | Interaction to Next Paint (ms) |
+| `tbt_ms` | number | Total Blocking Time (ms) — map when present in specialist JSON |
 | `source` | string | e.g. `lab_trace`, `lighthouse_lab` |
 | `rating` | string | `good`, `needs_improvement`, or `poor` |
+
+### `frontend_audit.pages[].performance`
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `lighthouse_performance_score` | number | Lighthouse performance score (0–100) when available |
+| `long_task_count` | integer | Long tasks from trace |
+| `trace_available` | boolean | Whether a performance trace was captured |
+
+### `frontend_audit.pages[].third_party_scripts[]` item
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `vendor` | string | Vendor or script label |
+| `url` | string | Script URL when known |
+| `status` | string | e.g. `ok`, `blocked`, `failed`, `slow` |
+| `detail` | string | Optional explanation |
+
+### `frontend_audit.pages[].accessibility`
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `lighthouse_accessibility_score` | number | Lighthouse accessibility score when available |
+| `issues` | string[] | Human-readable issue summaries (up to 10) |
+
+### `frontend_audit.baseline_comparison`
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `available` | boolean | Whether a prior baseline exists |
+| `baseline_generated_at` | string (ISO 8601) | Timestamp of baseline run |
+| `baseline_source` | string | e.g. `findings/frontend-audit.json` |
+| `regressions` | array | Regression rows — see below |
+
+### `frontend_audit.baseline_comparison.regressions[]` item
+
+| Field | Type | Notes |
+| ----- | ---- | ----- |
+| `type` | string | e.g. `cwv_regression`, `console_regression`, `http_regression` |
+| `page_url` | string | Affected page |
+| `title` | string | Short regression title |
+| `evidence` | string | What changed vs baseline |
+| `red_flag` | boolean | Hard gate when regression is material |
+
+Omit `baseline_comparison` when the regression sub-skill was not run or produced no data. Omit empty arrays and null-only objects on pages.
 
 ### `frontend_audit.pages[].console_errors[]` item
 
@@ -280,7 +335,7 @@ String items (message only) are also accepted.
 | `recommendation` | string | no | Suggested action |
 | `page_url` | string | no | Page where issue occurred |
 | `owner` | string | no | `dev`, `client`, or `agency` |
-| `red_flag` | boolean | no | Hard gate marker |
+| `red_flag` | boolean | no | Hard gate marker — `true` for JS errors or CWV regression on important pages |
 
 Send up to **20** specialist findings. Map specialist `warning` → `medium`.
 
@@ -296,30 +351,11 @@ Send up to **20** specialist findings. Map specialist `warning` → `medium`.
 
 | Field | Type | Notes |
 | ----- | ---- | ----- |
-| `browser_tool` | string | Tool actually used |
-| `browser_tool_available` | boolean | Browser MCP/CLI available |
+| `browser_tool` | string | Tool actually used (prefer `chrome-devtools-mcp`) |
+| `browser_tool_available` | boolean | Real browser MCP/CLI available |
 | `lighthouse_available` | boolean | Lighthouse enrichment available |
-| `figma_mcp_available` | boolean | Figma MCP available for comparison |
 
-### `frontend_audit.figma_comparison`
-
-| Field | Type | Notes |
-| ----- | ---- | ----- |
-| `status` | string | e.g. `completed`, `skipped`, `blocked` |
-| `skip_reason` | string | When skipped or blocked |
-| `figma_url` | string | Figma design URL when comparison ran or was requested |
-| `figma_node_id` | string | Node id when known |
-| `mismatch_count` | integer | Length of `mismatches[]` when the array is omitted |
-| `mismatches` | array | Optional list — see below |
-
-### `frontend_audit.figma_comparison.mismatches[]` item
-
-| Field | Type | Required | Notes |
-| ----- | ---- | -------- | ----- |
-| `area` | string | yes | Layout or component area |
-| `expected` | string | no | Figma expectation |
-| `observed` | string | no | Implementation observation |
-| `severity` | string | no | e.g. `warning`, `high`, `critical` |
+Do **not** send `figma_mcp_available` or `figma_comparison`.
 
 Screenshot and report URLs must be **published Paperclip artifact URLs** — same rules as [Report URLs](#report-urls).
 

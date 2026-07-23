@@ -1,6 +1,10 @@
 # Frontend Site Crawl — Examples
 
-## Example 1 — Homepage, no crawl instruction → single_page
+All new manifests use `scope.mode: "flexible"` with composable `scope.rules[]`.
+
+---
+
+## Example 1 — Homepage only (safe default)
 
 **Issue text:**
 ```txt
@@ -9,51 +13,24 @@ Environment: development
 Run frontend audit on the homepage.
 ```
 
-**artifacts/frontend-crawl-manifest.json:**
-
+**scope (excerpt):**
 ```json
 {
-  "check": "frontend-site-crawl",
-  "generated_at": "2026-07-21T12:00:00Z",
-  "seed_url": "https://paperclip-test.designingit.co/",
-  "environment": "development",
-  "scope": {
-    "mode": "single_page",
-    "mode_source": "issue_default",
-    "crawl_allowed": false,
-    "crawl_instruction": null
-  },
-  "discovery": {
-    "sources_used": [],
-    "sitemap_url": null,
-    "sitemap_available": false
-  },
-  "limits": {
-    "max_pages": 50,
-    "max_depth": 3,
-    "same_origin_only": true
-  },
-  "pages": [
-    {
-      "url": "https://paperclip-test.designingit.co/",
-      "normalized_path": "/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL only — no crawl instruction in issue"
-    }
+  "mode": "flexible",
+  "mode_source": "issue_default",
+  "instruction": "Homepage only",
+  "rules": [
+    { "action": "include", "target": "url", "value": "https://paperclip-test.designingit.co/" }
   ],
-  "excluded": [],
-  "stats": {
-    "discovered": 1,
-    "included": 1,
-    "excluded": 0
-  }
+  "exclude_patterns": ["/wp-admin/", "/cart/"]
 }
 ```
 
+**pages[]:** seed URL only.
+
 ---
 
-## Example 2 — Homepage + explicit site crawl
+## Example 2 — Full site crawl
 
 **Issue text:**
 ```txt
@@ -62,138 +39,153 @@ Environment: development
 Crawl all internal pages and run frontend audit.
 ```
 
-**artifacts/frontend-crawl-manifest.json (excerpt):**
-
+**scope (excerpt):**
 ```json
 {
-  "scope": {
-    "mode": "site_crawl",
-    "mode_source": "issue_explicit",
-    "crawl_allowed": true,
-    "crawl_instruction": "Crawl all internal pages"
-  },
-  "discovery": {
-    "sources_used": ["sitemap", "nav_links"],
-    "sitemap_url": "https://paperclip-test.designingit.co/sitemap.xml",
-    "sitemap_available": true
-  },
-  "pages": [
-    {
-      "url": "https://paperclip-test.designingit.co/",
-      "normalized_path": "/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/about/",
-      "normalized_path": "/about/",
-      "source": "sitemap",
-      "depth": 1,
-      "include_reason": "Listed in sitemap.xml"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/contact/",
-      "normalized_path": "/contact/",
-      "source": "nav",
-      "depth": 1,
-      "include_reason": "Primary navigation link"
-    }
-  ],
-  "excluded": [
-    {
-      "url": "https://paperclip-test.designingit.co/wp-admin/",
-      "reason": "disallowed_pattern"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/members/",
-      "reason": "auth_required"
-    }
-  ],
-  "stats": {
-    "discovered": 8,
-    "included": 5,
-    "excluded": 3
-  }
-}
-```
-
----
-
-## Example 3 — Homepage + explicit NO crawl
-
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/
-Homepage only — do not crawl other pages.
-```
-
-Same manifest as Example 1, but:
-
-```json
-"scope": {
-  "mode": "single_page",
+  "mode": "flexible",
   "mode_source": "issue_explicit",
-  "crawl_allowed": false,
-  "crawl_instruction": "Homepage only — do not crawl"
+  "instruction": "Crawl all internal pages",
+  "rules": [
+    { "action": "include", "target": "site_discovery", "value": "seed" }
+  ]
 }
 ```
 
+**pages[] (excerpt):** seed + discovered `/about/`, `/contact/`, etc. from sitemap/nav.
+
 ---
 
-## Example 4 — Non-homepage seed + child pages only
+## Example 3 — Homepage + explicit named pages
 
 **Issue text:**
 ```txt
-Target: https://paperclip-test.designingit.co/services/
-Audit this section and all child pages under /services/.
+Target: https://example.com/
+Check the homepage, /about/, and /services/.
+Environment: production
+```
+
+**scope (excerpt):**
+```json
+{
+  "mode": "flexible",
+  "mode_source": "issue_explicit",
+  "instruction": "Homepage, /about/, /services/",
+  "rules": [
+    { "action": "include", "target": "url", "value": "https://example.com/" },
+    { "action": "include", "target": "path", "value": "/about/" },
+    { "action": "include", "target": "path", "value": "/services/" }
+  ]
+}
+```
+
+**pages[]:** exactly three URLs — no site-wide discovery.
+
+---
+
+## Example 4 — Section path tree (child pages)
+
+**Issue text:**
+```txt
+Target: https://example.com/services/
+Audit this page and all child pages under /services/.
 Environment: development
 ```
 
-**artifacts/frontend-crawl-manifest.json (excerpt):**
-
+**scope (excerpt):**
 ```json
 {
-  "seed_url": "https://paperclip-test.designingit.co/services/",
-  "scope": {
-    "mode": "child_pages_only",
-    "mode_source": "issue_explicit",
-    "crawl_allowed": true,
-    "crawl_instruction": "child pages under /services/"
-  },
-  "pages": [
+  "mode": "flexible",
+  "mode_source": "issue_explicit",
+  "instruction": "/services/ and all child pages under /services/",
+  "rules": [
     {
-      "url": "https://paperclip-test.designingit.co/services/",
-      "normalized_path": "/services/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/services/web-design/",
-      "normalized_path": "/services/web-design/",
-      "source": "internal_link",
-      "depth": 1,
-      "include_reason": "Path prefix match /services/"
+      "action": "include",
+      "target": "path_tree",
+      "value": "/services/",
+      "discover_children": true
     }
-  ],
-  "excluded": [
-    {
-      "url": "https://paperclip-test.designingit.co/about/",
-      "reason": "out_of_scope"
-    }
-  ],
-  "stats": {
-    "discovered": 4,
-    "included": 3,
-    "excluded": 1
-  }
+  ]
 }
 ```
 
+**pages[] (excerpt):**
+```json
+[
+  {
+    "url": "https://example.com/services/",
+    "include_reason": "Path tree root /services/",
+    "matched_rule_index": 0
+  },
+  {
+    "url": "https://example.com/services/web-design/",
+    "include_reason": "Discovered under /services/",
+    "matched_rule_index": 0
+  }
+]
+```
+
+`/about/` excluded as `out_of_scope`.
+
 ---
 
-## Example 5 — Non-homepage seed, no child instruction → single page only
+## Example 5 — Explicit URL list (unrelated paths)
+
+**Issue text:**
+```txt
+Target: https://example.com/
+Check /about/, /contact/, /blog/, and /news/.
+```
+
+**scope (excerpt):**
+```json
+{
+  "mode": "flexible",
+  "mode_source": "issue_explicit",
+  "instruction": "/about/, /contact/, /blog/, /news/",
+  "rules": [
+    { "action": "include", "target": "path", "value": "/about/" },
+    { "action": "include", "target": "path", "value": "/contact/" },
+    { "action": "include", "target": "path", "value": "/blog/" },
+    { "action": "include", "target": "path", "value": "/news/" }
+  ]
+}
+```
+
+**pages[]:** four paths only — no discovery beyond explicit rules.
+
+---
+
+## Example 6 — Mixed scope (homepage + section tree)
+
+**Issue text:**
+```txt
+Target: https://example.com/
+Check homepage and all pages under /services/ after deploy.
+```
+
+**scope (excerpt):**
+```json
+{
+  "mode": "flexible",
+  "mode_source": "issue_explicit",
+  "instruction": "Homepage and all pages under /services/",
+  "rules": [
+    { "action": "include", "target": "url", "value": "https://example.com/" },
+    {
+      "action": "include",
+      "target": "path_tree",
+      "value": "/services/",
+      "discover_children": true
+    }
+  ]
+}
+```
+
+Union of homepage + `/services/*` descendants.
+
+---
+
+## Example 7 — Single landing page (inner seed)
 
 **Issue text:**
 ```txt
@@ -201,21 +193,17 @@ Target: https://paperclip-test.designingit.co/services/web-design/
 Check this landing page.
 ```
 
+**scope (excerpt):**
 ```json
 {
-  "scope": {
-    "mode": "single_page",
-    "mode_source": "issue_default",
-    "crawl_allowed": false,
-    "crawl_instruction": null
-  },
-  "pages": [
+  "mode": "flexible",
+  "mode_source": "issue_default",
+  "instruction": "Single page — /services/web-design/",
+  "rules": [
     {
-      "url": "https://paperclip-test.designingit.co/services/web-design/",
-      "normalized_path": "/services/web-design/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL only — non-homepage without child-pages instruction"
+      "action": "include",
+      "target": "url",
+      "value": "https://paperclip-test.designingit.co/services/web-design/"
     }
   ]
 }
@@ -223,7 +211,36 @@ Check this landing page.
 
 ---
 
-## Example 6 — BLOCKED ambiguous scope
+## Example 8 — Routine payload with structured scope
+
+**Routine JSON:**
+```json
+{
+  "target_url": "https://example.com/",
+  "environment": "staging",
+  "checks": ["frontend-site-crawl", "frontend-audit"],
+  "scope": {
+    "instruction": "Homepage, /about/, and all under /services/",
+    "rules": [
+      { "action": "include", "target": "url", "value": "https://example.com/" },
+      { "action": "include", "target": "path", "value": "/about/" },
+      {
+        "action": "include",
+        "target": "path_tree",
+        "value": "/services/",
+        "discover_children": true
+      }
+    ],
+    "exclude_patterns": ["/wp-admin/", "/cart/"]
+  }
+}
+```
+
+`mode_source: "routine"` in manifest.
+
+---
+
+## Example 9 — BLOCKED ambiguous scope
 
 **Issue text:**
 ```txt
@@ -232,7 +249,6 @@ Check the site frontend.
 ```
 
 **findings/frontend-site-crawl.json:**
-
 ```json
 {
   "check": "frontend-site-crawl",
@@ -244,8 +260,8 @@ Check the site frontend.
       "severity": "high",
       "category": "frontend",
       "title": "Ambiguous crawl scope",
-      "evidence": "Issue says 'check the site' but does not specify single page, site crawl, or child pages.",
-      "recommendation": "Clarify: homepage only, full crawl, or specific section with child pages.",
+      "evidence": "Issue says 'check the site' but does not list pages, path trees, or site crawl.",
+      "recommendation": "Clarify scope: list URLs/paths, request path tree (e.g. all under /services/), or request full site crawl.",
       "owner": "agency",
       "follow_up": true,
       "red_flag": false,
@@ -256,4 +272,10 @@ Check the site frontend.
 }
 ```
 
-Do not write manifest when BLOCKED. Orchestrator or parent issue must clarify before `frontend-audit` runs.
+Do not write manifest when BLOCKED.
+
+---
+
+## Legacy manifest compat
+
+Old manifests with `scope.mode: "single_page" | "site_crawl" | "child_pages_only"` remain valid for `frontend-audit` step 0. Convert to equivalent `flexible` rules per [contract.md](contract.md) § Legacy preset mapping when re-running.
