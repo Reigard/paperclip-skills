@@ -1,0 +1,80 @@
+{
+  "_comment": "Copy this file to config/{client-slug}/flow-smoke-basic.json within the skill folder",
+  "_comment2": "For full E2E checkout copy to config/{client-slug}/flow-full-checkout.json and set boundary: full_checkout",
+
+  "client": "your-client-slug",
+  "project": "website",
+  "environment": "staging",
+  "no_real_transactions": true,
+
+  "payment_sandbox": {
+    "boundary": "stop_at_render",
+    "_boundary_options": [
+      "stop_at_render — smoke test only: verify payment fields render, do NOT submit",
+      "full_checkout  — E2E test: complete the order using Stripe test card"
+    ],
+    "expected_indicators": [
+      "Test Mode",
+      "Testmodus",
+      "Sandbox",
+      "stripe.com/v3",
+      "test"
+    ],
+    "abort_if_live_gateway": true,
+    "note": "Do not click Pay or submit any payment form unless boundary is full_checkout.",
+
+    "_test_card_required_for_full_checkout": true,
+    "test_card": {
+      "network": "Visa",
+      "number": "4242 4242 4242 4242",
+      "expiry": "12/29",
+      "cvv": "123",
+      "note": "Stripe universal test card. Always approves in test mode."
+    }
+  },
+
+  "qa_persona": {
+    "_note": "Required for full_checkout boundary. Used for billing/account fields.",
+    "first_name": "QA",
+    "last_name": "Test",
+    "email": "qa-test@agency.internal",
+    "phone": "+1 555 000 1234",
+    "address_line_1": "123 Test Street",
+    "city": "Test City",
+    "postcode": "00000",
+    "country": "US",
+    "country_name": "United States"
+  },
+
+  "report": {
+    "html": "reports/flow-smoke-basic.html",
+    "json": "findings/flow-smoke-basic.json",
+    "create_work_product": true,
+    "work_product_title": "Client eCommerce Flow Smoke Report"
+  },
+
+  "critical_flows": [
+    {
+      "name": "Example: Product Checkout",
+      "startUrl": "https://staging.yourclient.com/shop/",
+      "steps": [
+        "Load the shop/product page",
+        "Add a product to the cart",
+        "Navigate to cart and verify correct total",
+        "Proceed to checkout and verify payment fields render (sandbox)"
+      ],
+      "pass_criteria": [
+        "product added to cart successfully",
+        "checkout renders payment fields",
+        "sandbox/test payment mode confirmed",
+        "no console errors"
+      ],
+      "fail_criteria": [
+        "fatal error or blank screen",
+        "cart total is missing",
+        "payment fields fail to load",
+        "live payment gateway detected (no test mode badge)"
+      ]
+    }
+  ]
+}

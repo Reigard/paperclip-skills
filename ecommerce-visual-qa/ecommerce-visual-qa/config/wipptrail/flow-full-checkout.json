@@ -1,0 +1,85 @@
+{
+  "client": "wipptrail",
+  "project": "website",
+  "environment": "staging",
+  "no_real_transactions": true,
+
+  "payment_sandbox": {
+    "boundary": "full_checkout",
+    "note": "Complete the full checkout in Stripe test mode only. Use the test card below. Verify order confirmation page. Do NOT use real card numbers.",
+    "test_card": {
+      "network": "Visa",
+      "number": "4242 4242 4242 4242",
+      "expiry": "12/29",
+      "cvv": "123",
+      "note": "Stripe universal test card. Always approves in test mode."
+    },
+    "expected_indicators": [
+      "Test Mode",
+      "Testmodus",
+      "Sandbox",
+      "stripe.com/v3",
+      "test"
+    ],
+    "abort_if_live_gateway": true
+  },
+
+  "qa_persona": {
+    "first_name": "QA",
+    "last_name": "Test",
+    "email": "qa-test@agency.internal",
+    "phone": "+43 123 456 789",
+    "address_line_1": "Teststraße 1",
+    "city": "Wien",
+    "postcode": "1010",
+    "country": "AT",
+    "country_name": "Austria",
+    "note": "Use these details for all billing/shipping and account creation fields."
+  },
+
+  "report": {
+    "html": "reports/flow-full-checkout.html",
+    "json": "findings/flow-full-checkout.json",
+    "create_work_product": true,
+    "work_product_title": "Wipptrail eCommerce Full Checkout E2E Report"
+  },
+
+  "critical_flows": [
+    {
+      "name": "Membership Full Checkout (E2E)",
+      "boundary": "full_checkout",
+      "startUrl": "https://wipp-paperclip.designingit.co/de/mitgliedschaft/",
+      "steps": [
+        "Load membership page",
+        "Select a membership option (e.g. Light Membership)",
+        "Navigate to the cart page and verify the correct product and total are shown",
+        "Proceed to checkout",
+        "Verify that the checkout is in Stripe test mode (test mode badge or test key indicator must be visible). If live gateway is detected, ABORT immediately with FAIL.",
+        "Fill in all billing fields using the qa_persona from the config",
+        "If a guest checkout or account creation option is presented, proceed as guest using qa_persona email. If account creation is required, fill in name, email and a throwaway password (QaTest2024!)",
+        "Fill in the Stripe card fields: card number from test_card.number, expiry from test_card.expiry, CVC from test_card.cvv",
+        "Click the Pay / Place Order / Bestellen button",
+        "Wait for the order confirmation page to load",
+        "Capture the order number, confirmation message, and any receipt details shown on screen"
+      ],
+      "pass_criteria": [
+        "membership added to cart with correct price",
+        "checkout renders payment fields in Stripe test mode",
+        "all billing fields accepted without validation errors",
+        "Stripe test card accepted without error",
+        "order confirmation page loads with a visible order number or success message",
+        "no console errors or PHP notices during the flow",
+        "no real transaction executed (test mode confirmed throughout)"
+      ],
+      "fail_criteria": [
+        "live payment gateway detected at any point",
+        "checkout page blank or fatal error",
+        "billing form rejects qa_persona data",
+        "Stripe card fields fail to render",
+        "test card declined or produces unexpected error",
+        "no order confirmation page after payment submission",
+        "JS or PHP fatal error during checkout"
+      ]
+    }
+  ]
+}

@@ -23,7 +23,7 @@
   "critical_flows": [
     {
       "name": "Events Calendar Checkout",
-      "startUrl": "https://wipp-paperclip.designingit.co/de/kalendar/",
+      "startUrl": "https://wipp-paperclip.designingit.co/de/kalender/",
       "steps": [
         "Load the calendar page",
         "Click on an event to view details",
