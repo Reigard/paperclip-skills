@@ -27,7 +27,7 @@
   "qa_persona": {
     "first_name": "QA",
     "last_name": "Test",
-    "email": "qa-test@agency.internal",
+    "email": "qa-test@example.com",
     "phone": "+43 123 456 789",
     "address_line_1": "Teststraße 1",
     "city": "Wien",
