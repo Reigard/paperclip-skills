@@ -1,172 +1,174 @@
 ---
 name: frontend-site-crawl
-description: Resolve flexible URL scope for the Front-end / Browser Health Agent — parse issue text or routine rules into a composable include list (explicit URLs, path trees, site discovery). Writes artifacts/frontend-crawl-manifest.json before frontend-audit runs chrome-devtools-mcp checks.
-compatibility: "Requires HTTP access to seed URL. Browser MCP optional for link discovery. First step in Browser Health Agent — see paperclip/agents/frontend-browser-health-agent/AGENT.md."
+description: Resolve flexible URL scope for the Front-end / Browser Health Agent — composable include rules, discovery limits, explicit MCP server selection for URL search (mcp.discovery vs mcp.audit), sampling, template caps, and agent presets. Writes artifacts/frontend-crawl-manifest.json before frontend-audit.
+compatibility: "Requires HTTP access to seed URL. Discovery MCP optional (discovery.mcp_server). Agent setup: references/agent-config.md, references/discovery-mcp.md."
 ---
 
 # Frontend Site Crawl
 
-Determines **which URLs** the **Front-end / Browser Health Agent** should audit in Chrome. Does not run console/network/CWV checks — the **`frontend-audit` orchestrator** and its sub-skills do that after this manifest exists.
+Determines **which URLs** the **Front-end / Browser Health Agent** should audit. Does not run console/network/CWV checks — **`frontend-audit`** does that after this manifest exists.
+
+**Configure the agent:** [references/agent-config.md](references/agent-config.md) — presets, routine JSON.
+
+**Discovery MCP providers:** [references/discovery-mcp.md](references/discovery-mcp.md) — which Paperclip MCP server to use for URL search.
 
 **Agent overview:** [../../agents/frontend-browser-health-agent/AGENT.md](../../agents/frontend-browser-health-agent/AGENT.md)
 
 ## When to use
 
-- Issue may cover multiple pages or mixed scope (explicit URLs + section crawl)
-- Routine includes `frontend-site-crawl` before `frontend-audit`
-- Scope must be recorded in manifest before browser checks run
+- Routine or issue defines multi-page scope, sampling, or discovery limits
+- Agent creator specified **`mcp.discovery`** (URL search MCP) in Paperclip routine
+- Need manifest before browser audit (`frontend-site-crawl` → `frontend-audit`)
 
-**Skip this skill** when issue clearly scopes exactly one URL with no discovery — `frontend-audit` can build the same single-URL manifest internally.
+**Skip** when issue scopes exactly one URL with no discovery — `frontend-audit` can build the same manifest internally.
 
-## Core rule
+## Core rules
 
-Scope is **flexible**: parse the issue (or routine `scope.rules[]`) into composable include rules. Union results, apply excludes and limits. Ambiguous instructions → `BLOCKED`, no manifest. Never crawl out-of-scope domains or auth-gated areas without credentials.
+1. Scope is **flexible** — `scope.rules[]` + `discovery` + `limits` + optional `template_caps`
+2. **Select discovery MCP explicitly** — `mcp.discovery` / `discovery.mcp_server` must match a server attached to the Paperclip agent
+3. **Audit MCP is separate** — `mcp.audit` is used by `frontend-audit`; may differ from discovery MCP
+4. **Cap repetitive templates** with `path_sample` or `template_caps`
+5. **`same_origin_links` off by default** — enable only for rare full crawls
+6. Ambiguous scope → `BLOCKED`. Record excluded URLs and MCP fallback in findings
 
-## Inputs required
+## Configuration sources (priority)
 
-| Input | Description |
-|---|---|
-| `seed_url` | Primary URL from issue (homepage or inner page) |
-| `environment` | `development`, `staging`, or `production` |
-| Issue text | Pages to include, path trees, site crawl, exclusions |
-| Issue id | Paperclip child issue |
-| Routine `scope` (optional) | Structured `instruction`, `rules[]`, `exclude_patterns[]` |
+1. Routine JSON — `mcp`, `scope`, `discovery`, `limits`, `crawl_preset`
+2. Issue text — natural language parsed to rules + limits
+3. Preset defaults — see [agent-config.md](references/agent-config.md)
 
-## Scope resolution
+## Key parameters (agent creator)
 
-Apply [references/contract.md](references/contract.md) § Scope resolution (flexible).
+| Area | Fields | Purpose |
+|---|---|---|
+| **Discovery MCP** | `mcp.discovery`, `discovery.mcp_server` | Which MCP collects nav/links (Paperclip server id) |
+| **Audit MCP** | `mcp.audit` | Which MCP runs `frontend-audit` (set on agent routine) |
+| **MCP fallback** | `discovery.mcp_required`, `discovery.mcp_fallback` | Block or fall back to `http_only` |
+| **What to include** | `scope.rules[]` | `url`, `path`, `path_tree`, `path_sample`, `site_discovery` |
+| **Page budget** | `limits.max_pages` | URLs sent to audit |
+| **Sources** | `discovery.sources` | `sitemap` (HTTP), `nav_links` (needs browser MCP) |
+| **Sampling** | `path_sample`, `template_caps` | Blog + N posts |
 
-**Always write `scope.mode: "flexible"`** with a populated `scope.rules[]` array.
+Full schema: [references/contract.md](references/contract.md)
 
-### Common scenarios → rules
+## MCP resolution (step 0)
 
-| Scenario | Rules |
-|---|---|
-| Homepage only | `[{ action: "include", target: "url", value: "<seed_url>" }]` |
-| Homepage + `/about/` + `/services/` | Three `url` or `path` include rules |
-| `/about/`, `/contact/`, `/blog/`, `/news/` | One `path` rule per path |
-| `/services/` and all child pages | `[{ action: "include", target: "path_tree", value: "/services/", discover_children: true }]` |
-| Full site crawl | `[{ action: "include", target: "site_discovery", value: "seed" }]` |
-| Homepage + all under `/services/` | `url` for homepage + `path_tree` for `/services/` |
+1. If `discovery.mcp_server` is `"auto"` (or `mcp.discovery` is `"auto"`) → walk `discovery.mcp_priority` **cheapest first**, pick first id connected in Paperclip session
+2. Else use explicit `discovery.mcp_server` → else `mcp.discovery` → preset default
+3. Verify server is connected (skip planned ids not yet attached — try next in chain)
+4. If none available and `mcp_required: true` → `BLOCKED`
+5. If none and `mcp_required: false` → `mcp_fallback` (usually `http_only`)
+6. Echo `mcp_resolved`, `mcp_available`, `mcp_priority_attempted[]` in manifest
 
-Record a one-line `scope.instruction` summarizing what was parsed.
+Default priority chain: `http_only` → `crawlbase-mcp` → `firecrawl-mcp` → `chrome-devtools-mcp`. Extend registry when new MCPs are added — [discovery-mcp.md](references/discovery-mcp.md).
 
 ## Procedure
 
-### 1) Parse scope from issue or routine
+### 1) Load agent config
 
-Build `scope.rules[]`, `scope.instruction`, `scope.exclude_patterns[]`.
+Merge preset + routine `mcp`, `scope`, `discovery`, `limits`. Resolve discovery MCP per step 0 above.
 
-If `BLOCKED` → write `findings/frontend-site-crawl.json` with verdict `BLOCKED`, stop. Do not run discovery.
+### 2) Parse scope
 
-### 2) Execute rules
+Build `scope.rules[]`, caps, excludes. If `BLOCKED` → stop.
 
-For each rule in `scope.rules[]`:
+### 3) Execute rules
 
-| `target` | Action |
+| Target | Discovery transport |
 |---|---|
-| `url` / `path` | Resolve to absolute URL on seed origin; add to candidates |
-| `path_tree` | Add seed path; discover same-origin links under prefix (depth-limited) |
-| `site_discovery` | Discover via sitemap → nav → same-origin links from seed |
+| `url` / `path` | No MCP — resolve URL |
+| `sitemap` source | HTTP/`curl` — any MCP setting |
+| `nav_links` / `same_origin_links` | Configured **`discovery.mcp_server`** browser tools |
+| `path_sample` | Sitemap or browser MCP per rule `sources` |
 
-Sitemap probe:
+Sitemap:
 
 ```bash
 curl -s -o /tmp/sitemap.xml -w "%{http_code}" <origin>/sitemap.xml
 ```
 
-Apply exclusions and limits from [references/contract.md](references/contract.md) § Discovery rules.
+Browser nav/links — use tools from resolved discovery MCP (e.g. `chrome-devtools-mcp`: `navigate_page`, `evaluate_script` — see [discovery-mcp.md](references/discovery-mcp.md)).
 
-Default limits: `max_pages: 50`, `max_depth: 3`, `same_origin_only: true`.
+Do **not** run audit sub-skills during discovery.
 
-### 3) Normalize and dedupe
+### 4) Apply filters and caps → write manifest + findings
 
-- Absolute URLs with consistent trailing slash policy
-- Strip `#fragment` and tracking params unless issue requires them
-- Deduplicate by normalized path
-- Record `matched_rule_index` and `include_reason` on each `pages[]` row
+### 5) Hand off to `frontend-audit`
 
-### 4) Write manifest
+Audit uses **`mcp.audit`** only — not discovery MCP.
 
-Write `artifacts/frontend-crawl-manifest.json` per [references/contract.md](references/contract.md).
-
-Write `findings/frontend-site-crawl.json`:
-
-- `verdict: PASS` when manifest written successfully
-- Include `info` findings for sitemap unavailable, pages excluded by limit, auth-gated paths skipped
-
-Examples: [references/examples.md](references/examples.md).
-
-### 5) Hand off to frontend-audit
-
-**`frontend-audit` reads the manifest in step 0** and audits every URL in `pages[]`.
-
-Do not publish HTML from this skill.
-
-## Output contract
-
-```txt
-<task-folder>/artifacts/frontend-crawl-manifest.json   ← required on PASS
-<task-folder>/findings/frontend-site-crawl.json        ← crawl-stage metadata
-```
-
-No HTML report from this skill.
-
-## Orchestrator integration
-
-Typical Browser Health Agent sequence:
-
-```txt
-1. frontend-site-crawl           → manifest (which URLs)
-2. frontend-audit (orchestrator) → merge sub-skills → JSON + HTML
-   ├─ frontend-browser-console
-   ├─ frontend-network-health
-   ├─ frontend-performance-cwv
-   ├─ frontend-third-party-scripts
-   ├─ frontend-accessibility-audit
-   └─ frontend-deploy-regression
-3. report-triage                 → rollup
-```
-
-When issue scopes a single URL with no discovery signals, orchestrator may skip step 1.
-
-Example routine payload (preferred):
+## Default maintenance values
 
 ```json
 {
-  "target_url": "https://paperclip-test.designingit.co/",
-  "environment": "development",
-  "checks": ["frontend-site-crawl", "frontend-audit"],
-  "scope": {
-    "instruction": "Homepage, /about/, and all pages under /services/",
-    "rules": [
-      { "action": "include", "target": "url", "value": "https://paperclip-test.designingit.co/" },
-      { "action": "include", "target": "path", "value": "/about/" },
-      { "action": "include", "target": "path_tree", "value": "/services/", "discover_children": true }
-    ]
-  }
+  "mcp": {
+    "discovery": "auto",
+    "audit": "chrome-devtools-mcp"
+  },
+  "crawl_preset": "maintenance",
+  "discovery": {
+    "mcp_server": "auto",
+    "mcp_priority": ["http_only", "crawlbase-mcp", "firecrawl-mcp", "chrome-devtools-mcp"],
+    "mcp_fallback": "http_only",
+    "sources": ["sitemap", "nav_links"]
+  },
+  "limits": { "max_pages": 10, "max_depth": 2 }
 }
 ```
 
-**Deprecated:** `crawl_scope: "single_page" | "site_crawl" | "child_pages_only"` — convert to equivalent rules per contract § Legacy preset mapping.
+## Example routine (agent template)
 
-## Safety rules
+```json
+{
+  "target_url": "https://example.com/",
+  "environment": "development",
+  "checks": ["frontend-site-crawl", "frontend-audit"],
+  "mcp": {
+    "discovery": "chrome-devtools-mcp",
+    "audit": "chrome-devtools-mcp"
+  },
+  "crawl_preset": "maintenance",
+  "scope": {
+    "instruction": "Homepage, /contact/, blog + 2 random posts",
+    "priority_urls": ["https://example.com/"],
+    "rules": [
+      { "action": "include", "target": "url", "value": "https://example.com/" },
+      { "action": "include", "target": "path", "value": "/contact/" },
+      {
+        "action": "include",
+        "target": "path_sample",
+        "value": "/blog/",
+        "sample": { "include_index": true, "match_pattern": "/blog/*/", "max": 2, "strategy": "random" }
+      }
+    ]
+  },
+  "discovery": {
+    "mcp_server": "chrome-devtools-mcp",
+    "mcp_fallback": "http_only",
+    "sources": ["sitemap", "nav_links"]
+  },
+  "limits": { "max_pages": 10 }
+}
+```
 
-- Same origin as seed only — never follow external domains
-- No form submits, no authenticated areas without credentials in issue
-- Do not crawl `/wp-admin/`, checkout, cart unless issue explicitly scopes them
-- Record every excluded URL in `excluded[]` with reason
-- Do not modify rollup files owned by Maintenance Orchestrator
+Sitemap-only discovery (audit still uses Chrome):
 
-## Related skills
-
-- **`frontend-audit`** — orchestrator; merges sub-skills → `findings/frontend-audit.json`
-- **`agency-visual-qa`** — separate visual / design acceptance gate — not used in standard browser health maintenance flow
+```json
+"mcp": { "discovery": "http_only", "audit": "chrome-devtools-mcp" },
+"discovery": { "mcp_server": "http_only", "sources": ["sitemap"] }
+```
 
 ## BLOCKED conditions
 
-- Cannot parse any include rule from issue or routine
-- Conflicting scope instructions
-- Seed URL unreachable (5xx, DNS failure)
-- Seed behind login and no credentials provided
-- Environment/URL mismatch (issue says production, URL is staging)
+- Empty or conflicting scope
+- `mcp_required: true` and configured discovery MCP not connected
+- Unknown `mcp_server` id (not attached to agent)
+- Seed unreachable or login-gated without credentials
+
+## Related
+
+- [agent-config.md](references/agent-config.md) — agent creator guide
+- [discovery-mcp.md](references/discovery-mcp.md) — MCP provider registry
+- [contract.md](references/contract.md) — manifest schema
+- [examples.md](references/examples.md) — scenarios
+- **`frontend-audit`** — uses `mcp.audit`

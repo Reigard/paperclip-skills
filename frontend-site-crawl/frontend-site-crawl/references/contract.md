@@ -9,6 +9,8 @@
 
 `frontend-audit` reads `frontend-crawl-manifest.json` in step 0.
 
+Human-readable agent setup guide: [agent-config.md](agent-config.md). Discovery MCP providers: [discovery-mcp.md](discovery-mcp.md).
+
 ---
 
 ## frontend-crawl-manifest.json schema
@@ -21,244 +23,446 @@
   "environment": "development | staging | production",
   "scope": {
     "mode": "flexible",
-    "mode_source": "issue_explicit | issue_default | routine",
+    "mode_source": "issue_explicit | issue_default | routine | agent_default",
     "instruction": "string",
-    "rules": [
-      {
-        "action": "include",
-        "target": "url | path | path_tree | site_discovery",
-        "value": "string",
-        "discover_children": false,
-        "sources": ["sitemap", "nav_links", "same_origin_links"]
-      }
-    ],
-    "exclude_patterns": ["/wp-admin/", "/cart/"]
+    "rules": [],
+    "include_patterns": [],
+    "exclude_patterns": [],
+    "priority_urls": [],
+    "template_caps": []
   },
   "discovery": {
-    "sources_used": ["sitemap", "nav_links", "same_origin_links", "issue_explicit"],
-    "sitemap_url": "string | null",
+    "mcp_server": "auto",
+    "mcp_priority": ["http_only", "crawlbase-mcp", "firecrawl-mcp", "chrome-devtools-mcp"],
+    "mcp_required": false,
+    "mcp_fallback": "http_only",
+    "mcp_resolved": "chrome-devtools-mcp",
+    "mcp_available": true,
+    "use_browser_mcp": true,
+    "sources": ["sitemap", "nav_links"],
+    "nav_scope": "primary_only",
+    "no_pagination": true,
+    "strip_query_params": true,
+    "exclude_extensions": [".pdf", ".jpg", ".png", ".zip"],
+    "sitemap_filter": null,
+    "sources_used": [],
+    "sitemap_url": null,
     "sitemap_available": false
   },
   "limits": {
-    "max_pages": 50,
-    "max_depth": 3,
+    "max_pages": 10,
+    "max_depth": 2,
+    "max_discovery_candidates": 100,
     "same_origin_only": true
   },
-  "pages": [
-    {
-      "url": "string",
-      "normalized_path": "string",
-      "source": "seed | issue_explicit | sitemap | nav | internal_link",
-      "depth": 0,
-      "include_reason": "string",
-      "matched_rule_index": 0
-    }
-  ],
-  "excluded": [
-    {
-      "url": "string",
-      "reason": "auth_required | out_of_scope | duplicate | over_limit | disallowed_pattern | exclude_pattern"
-    }
-  ],
+  "pages": [],
+  "excluded": [],
   "stats": {
-    "discovered": 12,
-    "included": 5,
-    "excluded": 7
+    "discovered": 0,
+    "included": 0,
+    "excluded": 0,
+    "excluded_by_reason": {}
   }
 }
 ```
 
-### scope.mode
+---
 
-| Mode | Meaning |
+## Agent configuration (routine / issue)
+
+When creating a **Front-end / Browser Health Agent** in Paperclip:
+
+1. Attach MCP servers in agent settings (ids must match routine JSON).
+2. Set **`mcp.discovery`** and **`mcp.audit`** in routine — see [discovery-mcp.md](discovery-mcp.md).
+3. Set scope, limits, and sources below.
+
+| Field | Purpose |
 |---|---|
-| `flexible` | **Default for all new runs.** Scope is built from `scope.rules[]` — composable include rules parsed from issue text or routine payload. |
-| `single_page` | **Legacy.** Read-only compat for old manifests. Equivalent to one `include` / `url` rule for `seed_url`. |
-| `site_crawl` | **Legacy.** Read-only compat. Equivalent to one `site_discovery` rule from seed. |
-| `child_pages_only` | **Legacy.** Read-only compat. Equivalent to one `path_tree` rule on seed path with `discover_children: true`. |
-
-New manifests must use `flexible` only. Do not write legacy mode values.
-
-### scope.rules[] — include actions
-
-Each rule adds URLs to scope. **Union** all matching URLs, then dedupe, apply excludes, apply limits.
-
-| `target` | `value` | `discover_children` | Behaviour |
-|---|---|---|---|
-| `url` | Absolute URL or path resolved against seed origin | `false` | Include exactly this URL |
-| `path` | Pathname, e.g. `/about/` | `false` | Include this path on seed origin |
-| `path_tree` | Path prefix, e.g. `/services/` | `true` (required) | Include seed path + same-origin descendants under prefix (depth-limited) |
-| `site_discovery` | `"seed"` or origin URL | n/a | Discover internal pages from seed via sitemap → nav → same-origin links |
-
-Optional per-rule fields:
-
-| Field | Applies to | Description |
-|---|---|---|
-| `sources` | `site_discovery`, `path_tree` when discovering | Subset of `sitemap`, `nav_links`, `same_origin_links` |
-| `max_depth` | `path_tree`, `site_discovery` | Override default depth for this rule only |
-
-`scope.exclude_patterns[]` — path prefixes excluded after all include rules (default list in § Default exclusions).
-
-### scope.instruction
-
-One-line human summary of resolved scope, copied verbatim from issue when possible. Examples:
-
-- `Homepage, /about/, /services/`
-- `/services/ and all child pages under /services/`
-- `Full site crawl from homepage`
-- `https://example.com/about/, /contact/, /blog/, /news/`
-
-### pages[] fields
-
-| Field | Description |
-|---|---|
-| `url` | Absolute URL, normalized (no hash, trailing slash policy consistent) |
-| `normalized_path` | Pathname only, e.g. `/about/` |
-| `source` | How the URL entered scope |
-| `depth` | Hops from nearest rule anchor (seed / path_tree root = 0) |
-| `include_reason` | Human-readable why this URL is in scope |
-| `matched_rule_index` | Index into `scope.rules[]` that included this URL |
+| `mcp.discovery` | Which MCP collects URLs — id or `"auto"` |
+| `mcp.audit` | Which MCP runs `frontend-audit` |
+| `discovery.mcp_priority` | **Cheapest-first** chain: `http_only`, `crawlbase-mcp` (planned), `firecrawl-mcp` (planned), `chrome-devtools-mcp` |
+| `discovery.mcp_server` | Per-run override for discovery MCP |
+| `discovery.mcp_required` | Block run if discovery MCP missing |
+| `discovery.mcp_fallback` | `http_only` when MCP unavailable |
+| `scope.rules[]` | Which pages/sections to include |
+| `limits.max_pages` | Hard cap on URLs sent to `frontend-audit` |
+| `limits.max_depth` | Link-follow depth for discovery rules |
+| `discovery.sources` | Where to discover URLs (`sitemap` needs no MCP; `nav_links` needs browser MCP) |
+| `template_caps[]` | Cap repetitive templates (blog posts, product SKUs) |
+| `scope.exclude_patterns` | Paths never audited |
 
 ---
 
-## findings/frontend-site-crawl.json
+## scope.mode
 
-Lightweight findings for crawl-stage issues only (not page QA):
+| Mode | Meaning |
+|---|---|
+| `flexible` | **Default for all new runs.** Built from `scope.rules[]` + discovery limits. |
+| `single_page` | **Legacy read-only.** One `url` rule for `seed_url`. |
+| `site_crawl` | **Legacy read-only.** One `site_discovery` rule. |
+| `child_pages_only` | **Legacy read-only.** One `path_tree` rule. |
+
+New manifests must use `flexible` only.
+
+---
+
+## scope.rules[] — include targets
+
+Union all rules → normalize → apply excludes → apply template caps → apply limits → `pages[]`.
+
+| `target` | `value` | Behaviour |
+|---|---|---|
+| `url` | Absolute URL or path on seed origin | Exactly this URL |
+| `path` | Pathname, e.g. `/about/` | Exactly this path on seed origin |
+| `path_tree` | Path prefix, e.g. `/services/` | Prefix URL + descendants (`discover_children: true`) |
+| `path_sample` | Path prefix, e.g. `/blog/` | Index/listing URL + **sample N** matching child URLs (see below) |
+| `site_discovery` | `"seed"` | Discover from sitemap → nav → links (respects `discovery.sources`) |
+
+### Per-rule optional fields
+
+| Field | Applies to | Description |
+|---|---|---|
+| `discover_children` | `path_tree` | Must be `true` for tree crawl |
+| `sources` | `path_tree`, `site_discovery`, `path_sample` | Override `discovery.sources` for this rule |
+| `max_depth` | discovery targets | Override `limits.max_depth` for this rule |
+| `max_pages` | discovery targets | Override `limits.max_pages` for this rule |
+| `sample` | `path_sample` | Sampling config (required for `path_sample`) |
+
+### `path_sample` — blog posts, products, archives
+
+Use when issue asks for **listing + a few examples**, not every child URL.
 
 ```json
 {
-  "check": "frontend-site-crawl",
-  "verdict": "PASS | BLOCKED",
-  "generated_at": "ISO-8601",
-  "manifest_path": "artifacts/frontend-crawl-manifest.json",
-  "findings": [
-    {
-      "severity": "warning | info | high",
-      "category": "frontend",
-      "title": "string",
-      "evidence": "string",
-      "recommendation": "string",
-      "owner": "agency",
-      "follow_up": false,
-      "red_flag": false,
-      "source": "curl | browser-mcp | manual",
-      "evidence_type": "http"
-    }
-  ]
+  "action": "include",
+  "target": "path_sample",
+  "value": "/blog/",
+  "sample": {
+    "include_index": true,
+    "match_pattern": "/blog/*/",
+    "max": 2,
+    "strategy": "random",
+    "seed": "run-id-or-issue-id"
+  }
 }
 ```
 
-Crawl skill does **not** produce HTML report — `frontend-audit` owns the user-facing HTML.
+| `sample` field | Description |
+|---|---|
+| `include_index` | Always include the listing URL (`/blog/`) |
+| `match_pattern` | Glob on pathname; `*` = one segment. Examples: `/blog/*/`, `/products/*/` |
+| `max` | Max URLs matching pattern (excluding index) |
+| `strategy` | `random`, `first`, `last`, `spread` (evenly spaced from sorted list) |
+| `seed` | Optional — deterministic random for reproducible runs |
+
+**Natural language → `path_sample`:**
+
+| Issue phrase | `sample` |
+|---|---|
+| «проверь блог и пару случайных постов» | `include_index: true`, `max: 2`, `strategy: random` |
+| «blog index + one post» | `max: 1`, `strategy: first` |
+| «one post per category» | use multiple rules or `strategy: spread` with higher `max` |
+
+Posts/articles are **non-unique templates** — always cap with `path_sample` or `template_caps`, never full `path_tree` on `/blog/` unless issue explicitly requests all posts.
+
+### scope.include_patterns[]
+
+Allowlist applied **after** rules union. URL must match at least one pattern to stay in scope.
+
+```json
+"include_patterns": ["/", "/about/", "/services/", "/contact/"]
+```
+
+Use for tight smoke tests: rules discover candidates, allowlist trims.
+
+### scope.priority_urls[]
+
+Always kept in `pages[]` even when `max_pages` truncates others (homepage, checkout landing, issue-critical URL).
+
+```json
+"priority_urls": ["https://example.com/", "https://example.com/contact/"]
+```
+
+### scope.template_caps[]
+
+Group URLs by pathname template and cap each group **after** discovery, **before** global `max_pages`.
+
+```json
+"template_caps": [
+  {
+    "pattern": "/blog/*/",
+    "max": 2,
+    "strategy": "random",
+    "seed": "issue-123",
+    "always_include": ["/blog/"]
+  },
+  {
+    "pattern": "/products/*/",
+    "max": 3,
+    "strategy": "first"
+  }
+]
+```
+
+| Field | Description |
+|---|---|
+| `pattern` | Glob on normalized path; `*` = one path segment |
+| `max` | Max URLs per template group (excluding `always_include`) |
+| `strategy` | `random`, `first`, `last`, `spread` |
+| `always_include` | Paths always kept (listing pages) |
+
+Unique marketing pages (`/about/`, `/services/web-design/`) typically need no cap — one URL per path.
+
+### scope.exclude_patterns[]
+
+Path prefixes removed after includes. Merged with default exclusions unless issue overrides.
+
+Default (always apply unless issue says otherwise):
+
+```txt
+/wp-admin/, /wp-login.php, /cart/, /checkout/, /my-account/
+/tag/, /category/, /author/
+/blog/page/, /page/
+/feed/, /comments/feed/
+```
+
+---
+
+## discovery — URL collection settings
+
+Provider registry and Paperclip agent setup: [discovery-mcp.md](discovery-mcp.md).
+
+| Field | Default (maintenance) | Description |
+|---|---|---|
+| `mcp_server` | `auto` or server id | Discovery MCP — id must match Paperclip attachment. `"auto"` picks first **connected** id from `mcp_priority` (cheapest first). `http_only` = curl/sitemap only |
+| `mcp_priority` | see [discovery-mcp.md](discovery-mcp.md) | Ordered list — **cheapest first**: `http_only` → `crawlbase-mcp` → `firecrawl-mcp` → `chrome-devtools-mcp`. Extend when new crawl MCPs are added |
+| `mcp_priority_attempted` | (output) | Ids tried during auto-selection |
+| `mcp_required` | `false` | `true` → `BLOCKED` if `mcp_server` not connected |
+| `mcp_fallback` | `http_only` | Used when MCP missing and `mcp_required: false` |
+| `mcp_resolved` | (output) | Actual provider used after fallback |
+| `mcp_available` | (output) | Whether configured MCP was connected at run time |
+| `use_browser_mcp` | **deprecated** | `true` when `mcp_server` is set and not `http_only` |
+| `sources` | `["sitemap", "nav_links"]` | **`same_origin_links` off by default** |
+| `nav_scope` | `primary_only` | `primary_only` \| `all_nav` |
+| `no_pagination` | `true` | Skip `/page/2/`, `?page=`, `/blog/page/N/` |
+| `strip_query_params` | `true` | Dedupe by path; drop tracking params |
+| `exclude_extensions` | `.pdf`, images, `.zip` | Skip direct file URLs |
+| `sitemap_filter` | `null` | Optional substring filter on sitemap URLs |
+
+Routine-level defaults (agent creator):
+
+```json
+"mcp": {
+  "discovery": "auto",
+  "audit": "chrome-devtools-mcp"
+},
+"discovery": {
+  "mcp_server": "auto",
+  "mcp_priority": ["http_only", "crawlbase-mcp", "firecrawl-mcp", "chrome-devtools-mcp"]
+}
+```
+
+`discovery.mcp_server` overrides `mcp.discovery` for one run (unless both are `auto`).
+
+**Planned crawl MCPs** (`crawlbase-mcp`, `firecrawl-mcp`) — add to agent when available; document tools in [discovery-mcp.md](discovery-mcp.md). Registry is extensible.
+
+### Source order (when enabled)
+
+1. `issue_explicit` — from `url` / `path` rules (no MCP)
+2. `sitemap` — HTTP/`curl` (works with `http_only` or any MCP server)
+3. `nav_links` — requires browser MCP (`chrome-devtools-mcp` or other attached server)
+4. `same_origin_links` — requires browser MCP; **only when explicitly enabled**
+
+### When to set which MCP
+
+| Scenario | `mcp.discovery` | `mcp.audit` | `sources` |
+|---|---|---|---|
+| Explicit URL list only | `http_only` | `chrome-devtools-mcp` | none |
+| Sitemap-only scope | `http_only` | `chrome-devtools-mcp` | `["sitemap"]` |
+| Cost-optimized auto | `auto` | `chrome-devtools-mcp` | `mcp_priority` cheapest connected |
+| API crawl (when attached) | `crawlbase-mcp` or `firecrawl-mcp` | `chrome-devtools-mcp` | per provider |
+| Sitemap + primary nav | `chrome-devtools-mcp` | `chrome-devtools-mcp` | `["sitemap", "nav_links"]` |
+| MCP required for nav scope | any browser id + `mcp_required: true` | browser id | includes `nav_links` |
+
+---
+
+## limits — page budget
+
+| Field | Default (maintenance) | Full crawl preset | Description |
+|---|---|---|---|
+| `max_pages` | `10` | `50` | URLs in final manifest → **audited by frontend-audit** |
+| `max_depth` | `2` | `3` | Max link hops during discovery |
+| `max_discovery_candidates` | `100` | `500` | Stop discovering after N candidates (before caps/truncation) |
+| `same_origin_only` | `true` | `true` | Never follow external domains |
+
+**Token cost:** audit cost ≈ `max_pages × viewports × sub-skills`. Keep `max_pages` low for scheduled maintenance.
+
+### Recommended presets
+
+| Preset name | `max_pages` | `max_depth` | `sources` | Notes |
+|---|---|---|---|---|
+| `smoke` | `5` | `1` | explicit rules only | Post-deploy homepage + key pages |
+| `maintenance` | `10` | `2` | `sitemap`, `nav_links` | Default routine |
+| `section` | `15` | `2` | `sitemap`, `nav_links` | One `path_tree` + caps |
+| `full` | `50` | `3` | all sources | Rare; issue must say full crawl |
+
+Set preset via routine: `"crawl_preset": "maintenance"` or explicit `limits` + `discovery` objects.
+
+---
+
+## pages[] fields
+
+| Field | Description |
+|---|---|
+| `url` | Absolute URL, normalized |
+| `normalized_path` | Pathname only |
+| `source` | `seed`, `issue_explicit`, `sitemap`, `nav`, `internal_link`, `sampled` |
+| `depth` | Discovery depth from rule anchor |
+| `include_reason` | Human-readable |
+| `matched_rule_index` | Index in `scope.rules[]` |
+| `template_group` | Optional — matched `template_caps[].pattern` |
+
+---
+
+## excluded[] reasons
+
+| Reason | Meaning |
+|---|---|
+| `auth_required` | Login wall |
+| `out_of_scope` | Fails include_patterns / rule prefix |
+| `duplicate` | Normalized path duplicate |
+| `over_limit` | Exceeded `max_pages` or `max_discovery_candidates` |
+| `over_template_cap` | Exceeded `template_caps` or `path_sample.max` |
+| `disallowed_pattern` | Default CMS/admin path |
+| `exclude_pattern` | User `exclude_patterns` |
+| `pagination` | Skipped by `no_pagination` |
+| `file_extension` | Skipped by `exclude_extensions` |
+| `not_priority` | Dropped by `max_pages` truncation (not in `priority_urls`) |
+
+Record counts in `stats.excluded_by_reason`.
 
 ---
 
 ## Scope resolution (flexible)
 
-Parse issue title + body and optional routine `scope` object. Build `scope.rules[]` — **do not** pick from a fixed 3-mode menu.
+Parse issue + routine `scope` + agent defaults. Build `scope.rules[]`, merge discovery settings, apply caps.
 
-### Step 1 — Extract signals from issue text
+### Natural language → rules + settings
 
-| User intent (examples) | Rule(s) to add |
+| User intent | Rules / settings |
 |---|---|
-| One URL only, no other pages mentioned | `{ action: "include", target: "url", value: "<seed_url>" }` |
-| Named pages: "homepage and /about/ and /services/" | One `url` or `path` rule per named page |
-| Explicit URL list: `/about/, /contact/, /blog/, /news/` | One `path` or `url` rule per entry |
-| "All pages under /services/", "child pages of /services/" | `{ action: "include", target: "path_tree", value: "/services/", discover_children: true }` |
-| "Crawl all pages", "site-wide", "full site" | `{ action: "include", target: "site_discovery", value: "seed" }` |
-| Combine: "homepage + /about/ + all under /services/" | **Multiple rules** — union results |
-| "Do not crawl", "homepage only" | Single `url` rule for seed only; do **not** add discovery rules |
-| "Exclude /blog/" | Add `/blog/` to `exclude_patterns` (does not remove explicit include rules) |
+| One URL only | `url` rule for seed; `max_pages: 1` |
+| Named pages list | One `path`/`url` rule each |
+| All under `/services/` | `path_tree` + `max_pages` on rule |
+| Full site | `site_discovery` + `crawl_preset: full` |
+| Blog + N random posts | `path_sample` with `max: N`, `strategy: random` |
+| Blog + one post | `path_sample` with `max: 1` |
+| Menu pages only | `discovery.sources: ["nav_links"]`, `nav_scope: primary_only` |
+| Sitemap only, no browser MCP | `mcp.discovery: "http_only"`, `sources: ["sitemap"]` |
+| Exclude blog archive | `exclude_patterns` + `/tag/`, `/category/` |
+| Never more than 8 pages | `limits.max_pages: 8` |
+| Homepage always checked | `priority_urls: ["<homepage>"]` |
 
-Keyword hints (non-exhaustive):
+Keyword hints (EN / RU):
 
-- **Explicit pages:** page names, path lists, bullet lists of URLs
-- **Path tree:** `child pages`, `subpages`, `descendants`, `under /path/`, `дочерние страницы`
-- **Site discovery:** `crawl`, `all pages`, `site-wide`, `обход`, `проход по страницам`, `все страницы`
-- **Single page:** `homepage only`, `single page`, `do not crawl`, `без обхода`, `только главная`
+- **Sample:** `couple of posts`, `random posts`, `пара постов`, `случайн`, `one post`, `sample`
+- **Cap:** `max N pages`, `no more than`, `не больше`, `limit`, `top 5`
+- **No MCP:** `sitemap only`, `no browser crawl`, `без браузера`
+- **Nav only:** `main menu`, `primary navigation`, `главное меню`
+- **Exclude:** `exclude`, `skip`, `without`, `кроме`, `без`
+- **Discovery MCP:** `sitemap only`, `no browser for crawl`, `chrome-devtools-mcp`, `use playwright for crawl`
+- **MCP required:** `must use browser for nav`, `do not fall back`
 
-### Step 2 — Routine payload override (optional)
-
-When routine JSON includes structured scope, use it instead of re-parsing issue text:
+### Routine payload (preferred)
 
 ```json
 {
   "target_url": "https://example.com/",
   "environment": "development",
   "checks": ["frontend-site-crawl", "frontend-audit"],
+  "mcp": {
+    "discovery": "chrome-devtools-mcp",
+    "audit": "chrome-devtools-mcp"
+  },
+  "crawl_preset": "maintenance",
   "scope": {
-    "instruction": "Homepage, /about/, and all pages under /services/",
+    "instruction": "Homepage, /contact/, blog index + 2 random posts",
     "rules": [
       { "action": "include", "target": "url", "value": "https://example.com/" },
-      { "action": "include", "target": "path", "value": "/about/" },
-      { "action": "include", "target": "path_tree", "value": "/services/", "discover_children": true }
+      { "action": "include", "target": "path", "value": "/contact/" },
+      {
+        "action": "include",
+        "target": "path_sample",
+        "value": "/blog/",
+        "sample": {
+          "include_index": true,
+          "match_pattern": "/blog/*/",
+          "max": 2,
+          "strategy": "random"
+        }
+      }
     ],
-    "exclude_patterns": ["/wp-admin/"]
+    "priority_urls": ["https://example.com/"],
+    "exclude_patterns": ["/tag/", "/category/", "/author/"]
+  },
+  "discovery": {
+    "mcp_server": "chrome-devtools-mcp",
+    "mcp_required": false,
+    "mcp_fallback": "http_only",
+    "sources": ["sitemap", "nav_links"],
+    "nav_scope": "primary_only",
+    "no_pagination": true
+  },
+  "limits": {
+    "max_pages": 10,
+    "max_depth": 2,
+    "max_discovery_candidates": 100
   }
 }
 ```
 
-**Deprecated:** `crawl_scope: "single_page" | "site_crawl" | "child_pages_only"` — convert to equivalent rules (see § Legacy preset mapping) when present; prefer `scope.rules[]`.
+`crawl_preset` merges defaults then routine `discovery` / `limits` override preset fields.
 
-### Step 3 — Validate
+### Validation
 
 | Condition | Result |
 |---|---|
-| `rules[]` empty after parsing | `BLOCKED` — cannot determine scope |
-| Conflicting instructions unresolved (`crawl all` + `homepage only`) | `BLOCKED` |
-| All include rules resolve to 0 URLs | `BLOCKED` |
-| Parsed scope is clear | `mode: "flexible"`, `mode_source: "issue_explicit"` or `"routine"` |
+| `rules[]` empty | `BLOCKED` |
+| Conflicting instructions | `BLOCKED` |
+| 0 URLs after resolution | `BLOCKED` |
+| Truncated by limits | `PASS` + `info` finding listing excluded count |
+| Clear scope | Write manifest |
 
-**Safe default** when issue gives only `seed_url` and no multi-page signals: one `url` rule for seed (same as legacy `single_page`).
-
-When `frontend-site-crawl` is **not** invoked, `frontend-audit` applies the same flexible resolution internally.
-
----
-
-## Legacy preset mapping (read + routine compat)
-
-When reading old manifests or deprecated `crawl_scope`:
-
-| Legacy value | Equivalent `flexible` rules |
-|---|---|
-| `single_page` | `[{ action: "include", target: "url", value: "<seed_url>" }]` |
-| `site_crawl` | `[{ action: "include", target: "site_discovery", value: "seed" }]` |
-| `child_pages_only` | `[{ action: "include", target: "path_tree", value: "<seed_path>", discover_children: true }]` |
+Safe default (issue = seed URL only): one `url` rule, `crawl_preset: smoke`.
 
 ---
 
 ## Rule execution order
 
-1. Resolve each rule independently → candidate URL sets
-2. **Union** candidates
-3. Normalize URLs (absolute, strip `#`, dedupe by path)
-4. Apply `exclude_patterns` and default exclusions → `excluded[]`
-5. Apply `limits.max_pages` / `limits.max_depth` → overflow to `excluded[]` with `over_limit`
-6. Write final `pages[]` with `matched_rule_index` and `include_reason`
-
----
-
-## Discovery rules (site_discovery and path_tree)
-
-1. **Same origin only** — scheme + host must match seed.
-2. **Sources** (in order, unless rule `sources` restricts):
-   - `sitemap.xml` / `sitemap_index.xml` if HTTP 200
-   - Primary nav links from seed page HTML
-   - Same-origin `<a href>` from seed (and child pages when depth allows)
-3. **Default exclusions** (also in `exclude_patterns` unless issue overrides):
-   - `/wp-admin/`, `/wp-login.php`, `/cart/`, `/checkout/`, `/my-account/`
-   - URLs with `#` fragments (strip fragment)
-   - `mailto:`, `tel:`, `javascript:`
-   - External domains
-   - Binary/media direct links unless issue scopes them
-4. **Limits:** default `max_pages: 50`, `max_depth: 3`.
+1. Resolve each rule → candidate sets (respect per-rule `max_depth`, `sources`)
+2. Union candidates; stop at `max_discovery_candidates`
+3. Normalize (strip query params if enabled, dedupe by path)
+4. Apply `exclude_patterns`, pagination filter, extension filter
+5. Apply `include_patterns` if non-empty
+6. Apply `template_caps` and `path_sample` limits
+7. Apply global `max_pages` — drop non-`priority_urls` first → `excluded[]`
+8. Write `pages[]`
 
 ---
 
 ## Auth / blocked discovery
 
-If seed returns login gate and credentials are not in issue scope:
-
-- `verdict: BLOCKED` in `findings/frontend-site-crawl.json`
-- Manifest may contain seed only with note in `excluded[]`
+Seed behind login without credentials → `verdict: BLOCKED`, no manifest (or seed-only with note).
 
 Do not guess credentials.
+
+---
+
+## Legacy preset mapping
+
+| Legacy | Equivalent |
+|---|---|
+| `single_page` | one `url` rule |
+| `site_crawl` | `site_discovery` + full preset limits |
+| `child_pages_only` | `path_tree` with `discover_children: true` |
+| `crawl_scope` (deprecated) | convert as above |

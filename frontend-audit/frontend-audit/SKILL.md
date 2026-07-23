@@ -42,11 +42,12 @@ Verdicts: `PASS`, `FAIL`, `BLOCKED`, `PARTIAL` (issue explicitly scopes partial 
 
 ### 0) Resolve pages
 
-1. `artifacts/frontend-crawl-manifest.json` → use `pages[]`; copy `scope.mode`, `scope.instruction`, and `scope.rules[]` into merged JSON `scope`
-2. Else resolve scope with the same **flexible rules** parser as `frontend-site-crawl` (composable include rules from issue text)
-3. Ambiguous scope → `BLOCKED`
+1. `artifacts/frontend-crawl-manifest.json` → use `pages[]`; copy `scope` and discovery MCP settings into merged JSON
+2. Bootstrap browser session using routine **`mcp.audit`** (not discovery MCP) — see [chrome-devtools-mcp.md](references/chrome-devtools-mcp.md)
+3. Else resolve scope with the same flexible parser as `frontend-site-crawl`
+4. Ambiguous scope → `BLOCKED`
 
-Legacy manifests (`single_page`, `site_crawl`, `child_pages_only`) — read `pages[]` as-is; optionally normalize to flexible rules internally.
+Audit **only** URLs in manifest `pages[]`. Discovery MCP (`mcp.discovery`) is not used in this step.
 
 ### 1) Bootstrap chrome-devtools-mcp
 
