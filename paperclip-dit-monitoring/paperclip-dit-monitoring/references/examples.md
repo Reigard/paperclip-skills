@@ -300,10 +300,13 @@ When **`frontend-audit`** ran, add **`frontend_audit`** from `findings/frontend-
       "failed_request_pages": 1,
       "broken_image_pages": 0,
       "poor_cwv_pages": 0,
+      "third_party_issue_pages": 1,
+      "accessibility_issue_pages": 0,
+      "regression_count": 1,
       "critical_findings": 0,
       "high_findings": 1,
       "warning_findings": 1,
-      "red_flags": 0
+      "red_flags": 1
     },
     "pages": [
       {
@@ -345,9 +348,28 @@ When **`frontend-audit`** ran, add **`frontend_audit`** from `findings/frontend-
           "lcp_ms": 2100,
           "cls": 0.06,
           "inp_ms": null,
+          "tbt_ms": 180,
           "source": "lab_trace",
           "rating": "good"
         },
+        "performance": {
+          "lighthouse_performance_score": 82,
+          "long_task_count": 2,
+          "trace_available": true
+        },
+        "third_party_scripts": [
+          {
+            "vendor": "Google Tag Manager",
+            "url": "https://www.googletagmanager.com/gtm.js",
+            "status": "ok"
+          },
+          {
+            "vendor": "Hotjar",
+            "url": "https://static.hotjar.com/c/hotjar.js",
+            "status": "blocked",
+            "detail": "Blocked by consent layer on staging"
+          }
+        ],
         "desktop_screenshot_url": "https://paperclip.designingit.co/artifacts/SUP-4821/g7h8-about-desktop.png",
         "mobile_screenshot_url": "https://paperclip.designingit.co/artifacts/SUP-4821/i9j0-about-mobile.png"
       },
@@ -370,7 +392,8 @@ When **`frontend-audit`** ran, add **`frontend_audit`** from `findings/frontend-
         "evidence": "Uncaught ReferenceError in main.js on the About page.",
         "recommendation": "Fix initMap reference or guard map init when container absent.",
         "page_url": "https://example.com/about/",
-        "owner": "dev"
+        "owner": "dev",
+        "red_flag": false
       },
       {
         "severity": "warning",
@@ -382,32 +405,24 @@ When **`frontend-audit`** ran, add **`frontend_audit`** from `findings/frontend-
       }
     ],
     "human_verification": [
-      { "item": "Confirm hero spacing against signed-off Figma on production", "owner": "agency", "due": "2026-07-28T17:00:00Z" }
+      { "item": "Analytics (GA4/GTM) firing in network tab?", "owner": "agency", "due": "2026-07-28T17:00:00Z" }
     ],
     "tooling": {
       "browser_tool": "chrome-devtools-mcp",
       "browser_tool_available": true,
-      "lighthouse_available": true,
-      "figma_mcp_available": true
+      "lighthouse_available": true
     },
-    "figma_comparison": {
-      "status": "completed",
-      "skip_reason": null,
-      "figma_url": "https://www.figma.com/design/example-file/Example?node-id=1-2",
-      "figma_node_id": "1:2",
-      "mismatch_count": 2,
-      "mismatches": [
+    "baseline_comparison": {
+      "available": true,
+      "baseline_generated_at": "2026-07-14T09:00:00Z",
+      "baseline_source": "findings/frontend-audit.json",
+      "regressions": [
         {
-          "area": "hero spacing",
-          "expected": "64px padding per Figma",
-          "observed": "~24px on implementation",
-          "severity": "warning"
-        },
-        {
-          "area": "primary CTA",
-          "expected": "Filled button per Figma",
-          "observed": "Text link only on mobile",
-          "severity": "high"
+          "type": "console_regression",
+          "page_url": "https://example.com/about/",
+          "title": "New console errors vs baseline",
+          "evidence": "Baseline had 0 console errors; current run has 2.",
+          "red_flag": true
         }
       ]
     },

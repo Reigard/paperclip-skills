@@ -1,259 +1,344 @@
 # Frontend Site Crawl — Examples
 
-## Example 1 — Homepage, no crawl instruction → single_page
+All manifests use `scope.mode: "flexible"`. Agent setup: [agent-config.md](agent-config.md). MCP providers: [discovery-mcp.md](discovery-mcp.md).
 
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/
-Environment: development
-Run frontend audit on the homepage.
-```
+---
 
-**artifacts/frontend-crawl-manifest.json:**
+## Example 1 — Homepage only (`smoke`)
+
+**Issue:** Run frontend audit on the homepage only.
 
 ```json
 {
-  "check": "frontend-site-crawl",
-  "generated_at": "2026-07-21T12:00:00Z",
-  "seed_url": "https://paperclip-test.designingit.co/",
-  "environment": "development",
+  "crawl_preset": "smoke",
   "scope": {
-    "mode": "single_page",
-    "mode_source": "issue_default",
-    "crawl_allowed": false,
-    "crawl_instruction": null
+    "instruction": "Homepage only",
+    "rules": [{ "action": "include", "target": "url", "value": "https://example.com/" }]
+  },
+  "limits": { "max_pages": 1 }
+}
+```
+
+---
+
+## Example 2 — Explicit page list (no discovery)
+
+**Issue:** Check homepage, /about/, and /services/.
+
+```json
+{
+  "scope": {
+    "instruction": "Homepage, /about/, /services/",
+    "rules": [
+      { "action": "include", "target": "url", "value": "https://example.com/" },
+      { "action": "include", "target": "path", "value": "/about/" },
+      { "action": "include", "target": "path", "value": "/services/" }
+    ]
+  },
+  "discovery": { "mcp_server": "http_only", "sources": [] },
+  "limits": { "max_pages": 5 }
+}
+```
+
+---
+
+## Example 3 — Blog index + 2 random posts (`path_sample`)
+
+**Issue:** Check the blog page and a couple of random post pages.
+
+```json
+{
+  "scope": {
+    "instruction": "Blog listing + 2 random posts",
+    "rules": [
+      {
+        "action": "include",
+        "target": "path_sample",
+        "value": "/blog/",
+        "sample": {
+          "include_index": true,
+          "match_pattern": "/blog/*/",
+          "max": 2,
+          "strategy": "random",
+          "seed": "issue-456"
+        }
+      }
+    ],
+    "exclude_patterns": ["/tag/", "/category/", "/author/", "/blog/page/"]
   },
   "discovery": {
-    "sources_used": [],
-    "sitemap_url": null,
-    "sitemap_available": false
+    "mcp_server": "chrome-devtools-mcp",
+    "sources": ["sitemap"],
+    "no_pagination": true
   },
-  "limits": {
-    "max_pages": 50,
-    "max_depth": 3,
-    "same_origin_only": true
-  },
-  "pages": [
-    {
-      "url": "https://paperclip-test.designingit.co/",
-      "normalized_path": "/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL only — no crawl instruction in issue"
-    }
-  ],
-  "excluded": [],
-  "stats": {
-    "discovered": 1,
-    "included": 1,
-    "excluded": 0
+  "limits": { "max_pages": 5, "max_discovery_candidates": 50 }
+}
+```
+
+**pages[]:** `/blog/` + 2 sampled post URLs — not 1000+ posts from sitemap.
+
+---
+
+## Example 4 — Blog index + 1 post (`first`)
+
+**Issue:** Check /blog/ and one sample post.
+
+```json
+{
+  "scope": {
+    "rules": [
+      {
+        "action": "include",
+        "target": "path_sample",
+        "value": "/blog/",
+        "sample": {
+          "include_index": true,
+          "match_pattern": "/blog/*/",
+          "max": 1,
+          "strategy": "first"
+        }
+      }
+    ]
   }
 }
 ```
 
 ---
 
-## Example 2 — Homepage + explicit site crawl
+## Example 5 — Section path tree with cap
 
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/
-Environment: development
-Crawl all internal pages and run frontend audit.
-```
-
-**artifacts/frontend-crawl-manifest.json (excerpt):**
+**Issue:** All pages under /services/, max 15.
 
 ```json
 {
   "scope": {
-    "mode": "site_crawl",
-    "mode_source": "issue_explicit",
-    "crawl_allowed": true,
-    "crawl_instruction": "Crawl all internal pages"
+    "instruction": "/services/ tree, max 15 pages",
+    "rules": [
+      {
+        "action": "include",
+        "target": "path_tree",
+        "value": "/services/",
+        "discover_children": true,
+        "max_pages": 15,
+        "max_depth": 2
+      }
+    ]
+  },
+  "discovery": { "mcp_server": "chrome-devtools-mcp", "sources": ["sitemap", "nav_links"] },
+  "limits": { "max_pages": 15, "max_depth": 2 }
+}
+```
+
+---
+
+## Example 6 — Sitemap only, no browser MCP
+
+**Issue:** Discover pages from sitemap only — no Chrome for crawl.
+
+```json
+{
+  "scope": {
+    "instruction": "Up to 10 pages from page sitemap",
+    "rules": [
+      {
+        "action": "include",
+        "target": "site_discovery",
+        "value": "seed",
+        "max_pages": 10,
+        "sources": ["sitemap"]
+      }
+    ],
+    "include_patterns": ["/", "/about/", "/services/", "/contact/"]
   },
   "discovery": {
-    "sources_used": ["sitemap", "nav_links"],
-    "sitemap_url": "https://paperclip-test.designingit.co/sitemap.xml",
-    "sitemap_available": true
+    "mcp_server": "http_only",
+    "sources": ["sitemap"],
+    "sitemap_filter": "page-sitemap"
   },
-  "pages": [
-    {
-      "url": "https://paperclip-test.designingit.co/",
-      "normalized_path": "/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/about/",
-      "normalized_path": "/about/",
-      "source": "sitemap",
-      "depth": 1,
-      "include_reason": "Listed in sitemap.xml"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/contact/",
-      "normalized_path": "/contact/",
-      "source": "nav",
-      "depth": 1,
-      "include_reason": "Primary navigation link"
-    }
-  ],
-  "excluded": [
-    {
-      "url": "https://paperclip-test.designingit.co/wp-admin/",
-      "reason": "disallowed_pattern"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/members/",
-      "reason": "auth_required"
-    }
-  ],
-  "stats": {
-    "discovered": 8,
-    "included": 5,
-    "excluded": 3
-  }
+  "limits": { "max_pages": 10, "max_discovery_candidates": 100 }
 }
 ```
 
 ---
 
-## Example 3 — Homepage + explicit NO crawl
+## Example 7 — Primary navigation only
 
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/
-Homepage only — do not crawl other pages.
-```
-
-Same manifest as Example 1, but:
-
-```json
-"scope": {
-  "mode": "single_page",
-  "mode_source": "issue_explicit",
-  "crawl_allowed": false,
-  "crawl_instruction": "Homepage only — do not crawl"
-}
-```
-
----
-
-## Example 4 — Non-homepage seed + child pages only
-
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/services/
-Audit this section and all child pages under /services/.
-Environment: development
-```
-
-**artifacts/frontend-crawl-manifest.json (excerpt):**
-
-```json
-{
-  "seed_url": "https://paperclip-test.designingit.co/services/",
-  "scope": {
-    "mode": "child_pages_only",
-    "mode_source": "issue_explicit",
-    "crawl_allowed": true,
-    "crawl_instruction": "child pages under /services/"
-  },
-  "pages": [
-    {
-      "url": "https://paperclip-test.designingit.co/services/",
-      "normalized_path": "/services/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL"
-    },
-    {
-      "url": "https://paperclip-test.designingit.co/services/web-design/",
-      "normalized_path": "/services/web-design/",
-      "source": "internal_link",
-      "depth": 1,
-      "include_reason": "Path prefix match /services/"
-    }
-  ],
-  "excluded": [
-    {
-      "url": "https://paperclip-test.designingit.co/about/",
-      "reason": "out_of_scope"
-    }
-  ],
-  "stats": {
-    "discovered": 4,
-    "included": 3,
-    "excluded": 1
-  }
-}
-```
-
----
-
-## Example 5 — Non-homepage seed, no child instruction → single page only
-
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/services/web-design/
-Check this landing page.
-```
+**Issue:** Audit pages linked from the main menu.
 
 ```json
 {
   "scope": {
-    "mode": "single_page",
-    "mode_source": "issue_default",
-    "crawl_allowed": false,
-    "crawl_instruction": null
+    "instruction": "Primary navigation pages",
+    "rules": [{ "action": "include", "target": "url", "value": "https://example.com/" }],
+    "priority_urls": ["https://example.com/"]
   },
-  "pages": [
-    {
-      "url": "https://paperclip-test.designingit.co/services/web-design/",
-      "normalized_path": "/services/web-design/",
-      "source": "seed",
-      "depth": 0,
-      "include_reason": "Seed URL only — non-homepage without child-pages instruction"
-    }
-  ]
+  "discovery": {
+    "mcp_server": "chrome-devtools-mcp",
+    "sources": ["nav_links"],
+    "nav_scope": "primary_only"
+  },
+  "limits": { "max_pages": 10, "max_depth": 1 }
+}
+```
+
+Agent loads homepage in Chrome, extracts primary nav hrefs only.
+
+---
+
+## Example 8 — Mixed scope (homepage + services tree + blog sample)
+
+**Issue:** Homepage, all /services/ pages, blog + 2 posts.
+
+```json
+{
+  "scope": {
+    "instruction": "Homepage, /services/*, blog + 2 posts",
+    "priority_urls": ["https://example.com/"],
+    "rules": [
+      { "action": "include", "target": "url", "value": "https://example.com/" },
+      {
+        "action": "include",
+        "target": "path_tree",
+        "value": "/services/",
+        "discover_children": true,
+        "max_pages": 10
+      },
+      {
+        "action": "include",
+        "target": "path_sample",
+        "value": "/blog/",
+        "sample": {
+          "include_index": true,
+          "match_pattern": "/blog/*/",
+          "max": 2,
+          "strategy": "random"
+        }
+      }
+    ]
+  },
+  "limits": { "max_pages": 15 }
 }
 ```
 
 ---
 
-## Example 6 — BLOCKED ambiguous scope
+## Example 9 — Template caps on products
 
-**Issue text:**
-```txt
-Target: https://paperclip-test.designingit.co/
-Check the site frontend.
-```
-
-**findings/frontend-site-crawl.json:**
+**Issue:** Product archive + up to 3 product pages.
 
 ```json
 {
-  "check": "frontend-site-crawl",
-  "verdict": "BLOCKED",
-  "generated_at": "2026-07-21T12:00:00Z",
-  "manifest_path": null,
+  "scope": {
+    "instruction": "Products listing + 3 samples",
+    "rules": [
+      { "action": "include", "target": "path", "value": "/products/" },
+      {
+        "action": "include",
+        "target": "path_tree",
+        "value": "/products/",
+        "discover_children": true,
+        "sources": ["sitemap"]
+      }
+    ],
+    "template_caps": [
+      {
+        "pattern": "/products/*/",
+        "max": 3,
+        "strategy": "spread",
+        "always_include": ["/products/"]
+      }
+    ]
+  },
+  "limits": { "max_pages": 8 }
+}
+```
+
+---
+
+## Example 10 — Full site crawl (`full` preset — rare)
+
+**Issue:** Crawl all internal pages (explicit approval required).
+
+```json
+{
+  "crawl_preset": "full",
+  "scope": {
+    "instruction": "Full site crawl",
+    "rules": [{ "action": "include", "target": "site_discovery", "value": "seed" }]
+  },
+  "discovery": {
+    "mcp_server": "chrome-devtools-mcp",
+    "sources": ["sitemap", "nav_links", "same_origin_links"],
+    "nav_scope": "all_nav",
+    "no_pagination": false
+  },
+  "limits": { "max_pages": 50, "max_depth": 3, "max_discovery_candidates": 500 }
+}
+```
+
+---
+
+## Example 11 — Truncation info finding
+
+When discovery finds 45 URLs but `max_pages: 10`:
+
+**findings/frontend-site-crawl.json (excerpt):**
+
+```json
+{
+  "verdict": "PASS",
   "findings": [
     {
-      "severity": "high",
-      "category": "frontend",
-      "title": "Ambiguous crawl scope",
-      "evidence": "Issue says 'check the site' but does not specify single page, site crawl, or child pages.",
-      "recommendation": "Clarify: homepage only, full crawl, or specific section with child pages.",
+      "severity": "info",
+      "title": "URL scope truncated",
+      "evidence": "Discovered 45 candidates; included 10 (max_pages). 35 excluded as over_limit.",
+      "recommendation": "Raise limits.max_pages or narrow scope rules if more pages are required.",
       "owner": "agency",
-      "follow_up": true,
-      "red_flag": false,
-      "source": "manual",
-      "evidence_type": "http"
+      "follow_up": false
     }
   ]
 }
 ```
 
-Do not write manifest when BLOCKED. Orchestrator or parent issue must clarify before `frontend-audit` runs.
+**stats.excluded_by_reason:** `{ "over_limit": 35 }`
+
+---
+
+## Example 12 — BLOCKED ambiguous scope
+
+**Issue:** Check the site frontend. (no pages, no crawl mode)
+
+→ `verdict: BLOCKED`, no manifest. See [contract.md](contract.md) § Validation.
+
+---
+
+## Example 13 — Different discovery vs audit MCP
+
+**Agent routine:** sitemap crawl without Chrome for discovery; full audit in Chrome.
+
+```json
+{
+  "mcp": {
+    "discovery": "http_only",
+    "audit": "chrome-devtools-mcp"
+  },
+  "scope": {
+    "rules": [
+      { "action": "include", "target": "site_discovery", "value": "seed", "sources": ["sitemap"], "max_pages": 10 }
+    ]
+  },
+  "discovery": {
+    "mcp_server": "http_only",
+    "mcp_resolved": "http_only",
+    "sources": ["sitemap"]
+  }
+}
+```
+
+`frontend-audit` bootstraps **`chrome-devtools-mcp`** from `mcp.audit` — not used during crawl.
+
+---
+
+## Legacy manifest compat
+
+Manifests with `scope.mode: single_page | site_crawl | child_pages_only` remain readable. Re-run with `flexible` + [agent-config.md](agent-config.md) presets.
