@@ -40,9 +40,24 @@ Guidelines:
 - **One POST per `run_id`** — retries reuse the same id (server upserts)
 - Invoke **in-agent** by following this skill (read task folder → build JSON → HTTP POST). There is **no** required host CLI helper named `paperclip-dit-monitoring`.
 - Invoke from whichever agent or workflow **owns the combined evidence** for that run; there is no hard-coded agent name in this skill
-- Prefer posting **once** when all selected checks are represented; partial payloads are OK when fewer checks ran
+- Prefer posting **once** when all selected checks are represented. Partial payloads are OK **only** when a check was **not selected** or its specialist file is genuinely absent — never as a shortcut on cheap/recovery wakes when specialist evidence exists
 - Multiple POSTs with the same `run_id` overwrite each other — avoid parallel sends from different contexts
 - Ingest failure → warning + `_sync.warnings`; **never** block or re-open the maintenance issue
+
+### Forbidden shortcuts (do not POST these)
+
+These produce a 201 in DIT but an almost-empty maintenance modal. **Never** do them when the corresponding specialist file exists:
+
+| Forbidden | Why |
+| --------- | --- |
+| Copy rollup `findings.json` → `frontend_audit` compact summary (`core_web_vitals_lab`, top-level `accessibility_score`, finding-count scalars without `pages[]` / `summary{}`) | DIT UI only binds the ingest schema (`pages[]`, nested `summary`, etc.) — compact keys are ignored |
+| `jq` / extract only `verdict` + CWV lab from `findings/frontend-audit.json` | Same — drops per-page evidence, findings, screenshots, human verification |
+| Hand-build a thin `frontend_audit` with `verdict` alone (or verdict + scores) | Modal shows essentially only the verdict chip |
+| Send `plugins[]` / `themes[]` as **name-only** objects when specialist JSON has versions/update fields | Inventory table shows names without versions |
+| Omit `wp_version`, `plugin_count`, `pending_updates` when WordPress specialist evidence has them | Info grid hides those vitals |
+| Skip full mapping because the wake is cheap, status-only, or recovery | Ingest is independent of parent finalization — still map the full specialist files |
+
+If you cannot map the full object (file unreadable, schema unclear), set `_sync.warnings`, comment on the issue, and **do not** POST a compact stub that pretends the check ran.
 
 ## Relationship to Support System (SUP) maintenance orchestration
 
@@ -238,6 +253,8 @@ When the run collected **full plugin or theme inventory** (typical: `wp-health-a
 | Include `themes[]` | Only when a per-theme list exists in specialist evidence |
 | Omit when absent | Do **not** send `"plugins": []` or `"themes": []` — omit the key entirely |
 | Required item field | Each object must have `name` (plugin name or theme slug) |
+| Full objects required | When specialist JSON has `version` / `status` / `update` / `update_version` (or equivalents), **map them** — name-only `plugins[]` is forbidden |
+| Scalars required when known | Set `wp_version`, `plugin_count`, `pending_updates` from the same WordPress evidence; do not leave them null when the specialist file has values |
 | Keep scalars in sync | When `plugins[]` is sent, `plugin_count` = array length; `pending_updates` = plugins with update available |
 | Do not duplicate | Inventory detail lives in `plugins[]` / `themes[]`; keep rollup highlights in `findings[]` (top 3–5), not full lists |
 
@@ -261,7 +278,18 @@ Full multi-item examples: [examples.md](references/examples.md).
 
 ### Frontend audit object (`frontend_audit`)
 
-When the run selected **`frontend-audit`** (Front-end / Browser Health Agent orchestrator — with sub-skills `frontend-browser-console`, `frontend-network-health`, `frontend-performance-cwv`, `frontend-third-party-scripts`, `frontend-accessibility-audit`, `frontend-deploy-regression`), add a **`frontend_audit`** object from merged **`findings/frontend-audit.json`**. See [frontend-browser-health-agent/AGENT.md](../../../agents/frontend-browser-health-agent/AGENT.md).
+When the run selected **`frontend-audit`** (Front-end / Browser Health Agent orchestrator — with sub-skills `frontend-browser-console`, `frontend-network-health`, `frontend-performance-cwv`, `frontend-third-party-scripts`, `frontend-accessibility-audit`, `frontend-deploy-regression`), add a **`frontend_audit`** object from merged **`findings/frontend-audit.json`**. See [frontend-browser-health-agent/AGENTS.md](../../../agents/frontend-browser-health-agent/AGENTS.md).
+
+**Hard source rule:** map from the **full specialist file** `findings/frontend-audit.json` only. Do **not** use the compact `frontend_audit` block inside rollup `findings.json` (that stub is for human/rollup summary — wrong field names for DIT).
+
+**Minimum acceptable `frontend_audit` when the specialist file has page evidence:**
+
+- `verdict` (lowercase: `pass` / `warn` / `fail` / `unknown`)
+- `summary{}` (object — not top-level score scalars alone)
+- `pages[]` with at least one page (CWV under `pages[].core_web_vitals`, not `core_web_vitals_lab`)
+- Map `findings[]`, `human_verification[]`, `tooling`, screenshot URLs when present in the specialist file
+
+If the specialist file contains `pages[]` but your payload would omit them → **stop and fix the mapping**; do not POST.
 
 | Rule | Detail |
 | ---- | ------ |
@@ -577,12 +605,15 @@ Before finishing the heartbeat:
 - [ ] `verdict`, `site_status`, `check_type` use allowed enums
 - [ ] Run findings in `findings[]`; handoff issues in `_sync.warnings[]` only
 - [ ] `findings` length ≤ 5, severities valid
-- [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` and/or `themes[]`; keys omitted when inventory was not collected
-- [ ] When `frontend-audit` ran, ingest JSON includes `frontend_audit` built from `findings/frontend-audit.json`; key omitted when the check did not run
+- [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` and/or `themes[]` with versions/update fields (not name-only); keys omitted when inventory was not collected
+- [ ] `wp_version` / `plugin_count` / `pending_updates` set when WordPress specialist evidence has them
+- [ ] When `frontend-audit` ran, ingest JSON includes `frontend_audit` built from **full** `findings/frontend-audit.json` (not rollup compact stub); key omitted when the check did not run
+- [ ] `frontend_audit` has `pages[]` + `summary{}` when the specialist file has page evidence — never verdict-only / `core_web_vitals_lab`-only
 - [ ] `frontend_audit` has **no** `figma_comparison`; tooling omits Figma fields
 - [ ] `frontend_audit.findings[]`, `human_verification[]`, and `tooling` included when present in specialist JSON; per-page issue arrays capped at 5 items; empty arrays omitted
 - [ ] `frontend_audit.pages[].desktop_screenshot_url` / `mobile_screenshot_url` and specialist report URLs are published Paperclip artifact URLs (not relative paths)
 - [ ] `plugin_count` / `pending_updates` consistent with `plugins[]` when the array is present
+- [ ] No forbidden shortcut from the table above (compact rollup copy, jq verdict+CWV, cheap-wake thin POST)
 - [ ] `_sync` reflects POST outcome (not pre-filled success)
 - [ ] Request body is direct JSON (not wrapped)
 - [ ] Ingest attempted only when resolved URL and token are present

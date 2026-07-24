@@ -171,6 +171,8 @@ Shape mirrors WP-CLI / specialist JSON from the run task folder. Extra keys are 
 
 Optional **Front-end / Browser Health Agent** block from the **`frontend-audit`** specialist check (real Chrome via chrome-devtools-mcp — console, network, CWV, performance, regressions). Send it **in the ingest POST body** when `findings/frontend-audit.json` exists. DIT Monitoring shows it in the maintenance modal under **Frontend audit** (collapsed by default).
 
+**Source:** full specialist `findings/frontend-audit.json` only. Do **not** POST the compact `frontend_audit` stub from rollup `findings.json` (`core_web_vitals_lab`, top-level `accessibility_score` / finding-count scalars without `pages[]` and nested `summary{}`) — DIT ignores those keys and the modal looks empty aside from verdict.
+
 **Not in scope:** Figma / visual design comparison — do **not** send `figma_comparison` in new ingests.
 
 **When to include:**
