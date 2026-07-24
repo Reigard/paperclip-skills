@@ -55,6 +55,8 @@ These produce a 201 in DIT but an almost-empty maintenance modal. **Never** do t
 | Hand-build a thin `frontend_audit` with `verdict` alone (or verdict + scores) | Modal shows essentially only the verdict chip |
 | Send `plugins[]` / `themes[]` as **name-only** objects when specialist JSON has versions/update fields | Inventory table shows names without versions |
 | Send **updates-only** `plugins[]` when a full installed list exists in specialist evidence | `plugin_count` and table length diverge; DIT shows a count-mismatch note |
+| Send **updates-only** `themes[]` (or omit `themes[]`) when specialist evidence listed installed themes (e.g. “6 themes”) | DIT **Themes** tab never appears — UI only renders non-empty `themes[]` |
+| Use rollup `update_intelligence.theme_updates` alone as `themes[]` | That array is pending theme updates only (often `[]` even when themes are installed) |
 | Omit `wp_version`, `plugin_count`, `pending_updates` when WordPress specialist evidence has them | Info grid hides those vitals |
 | Skip full mapping because the wake is cheap, status-only, or recovery | Ingest is independent of parent finalization — still map the full specialist files |
 
@@ -251,15 +253,19 @@ When the run collected **full plugin or theme inventory** (typical: `wp-health-a
 | Rule | Detail |
 | ---- | ------ |
 | Include `plugins[]` | Only when a per-plugin list exists in specialist evidence (not counts alone). Prefer **full installed inventory** (including must-use when collected), not updates-only |
-| Include `themes[]` | Only when a per-theme list exists in specialist evidence |
-| Omit when absent | Do **not** send `"plugins": []` or `"themes": []` — omit the key entirely |
+| Include `themes[]` | Same as plugins: **every installed theme** when theme inventory was collected (active, inactive, parent, child). Not updates-only; not “count in findings text only” |
+| Omit when absent | Do **not** send `"plugins": []` or `"themes": []` — omit the key entirely. If themes were collected, **do not omit** `themes[]` just because `theme_updates` is empty |
 | Required item field | Each object must have `name` (plugin name or theme slug) |
-| Full objects required | When specialist JSON has `version` / `status` / `update` / `update_version` (or equivalents), **map them** — name-only `plugins[]` is forbidden |
+| Full objects required | When specialist JSON has `version` / `status` / `update` / `update_version` (or equivalents), **map them** — name-only `plugins[]` / `themes[]` is forbidden |
+| Theme extras | Map `title`, `parent_theme`, `author`, `update_source` when present |
 | Scalars required when known | Set `wp_version`, `plugin_count`, `pending_updates` from the same WordPress evidence; do not leave them null when the specialist file has values |
 | Count mismatch | Prefer `plugin_count` = `plugins[]` length and `pending_updates` = plugins with an update. If they **differ**, still POST as-is (do not drop inventory). DIT UI shows a short count-mismatch note under WordPress inventory |
 | Do not duplicate | Inventory detail lives in `plugins[]` / `themes[]`; keep rollup highlights in `findings[]` (top 3–5), not full lists |
 
-Build each array from the run task folder — usually `findings/wp-health-audit.json` → `evidence.plugins` / `evidence.themes`, or the equivalent structure in `findings/wordpress-*.json`. **Do not** use rollup `update_intelligence.plugin_updates` alone as the full `plugins[]` (that list is updates-only).
+Build each array from the run task folder — usually `findings/wp-health-audit.json` → `evidence.plugins` / `evidence.themes`, or the equivalent structure in `findings/wordpress-*.json`.
+
+**Do not** use rollup `update_intelligence.plugin_updates` alone as the full `plugins[]` (updates-only).  
+**Do not** use rollup `update_intelligence.theme_updates` alone as the full `themes[]` (pending theme updates only — often empty while several themes are installed).
 
 ### Field name mapping (specialist / rollup → ingest)
 
@@ -272,8 +278,12 @@ Always emit **ingest snake_case** in the POST body. Common aliases from WordPres
 | `update` (or set `available` when an available version exists, else `none`) | `update` |
 | `status` | `status` |
 | `auto_update`, `autoUpdate`, `autoupdate` | `auto_update` |
-| `vulnerability_status`, `vulnerability`, `vuln_status` | `vulnerability_status` |
+| `vulnerability_status`, `vulnerability`, `vuln_status` | `vulnerability_status` (plugins) |
 | `last_update_check`, `last_checked`, `checked_at` | `last_update_check` |
+| `title`, `Name` (theme display name) | `title` (themes) |
+| `parent_theme`, `parent`, `Template` | `parent_theme` (themes) |
+| `author` | `author` (themes) |
+| `update_source` | `update_source` (themes) |
 
 If auto-update / vulnerability / last-check were not collected, omit those keys (DIT shows `—`). Do **not** invent values.
 
@@ -290,6 +300,21 @@ Example minimal plugin entry:
   "update_version": "6.2.7",
   "auto_update": "off",
   "vulnerability_status": "no known issues"
+}
+```
+
+Example minimal theme entry:
+
+```json
+{
+  "name": "twentytwentyfour",
+  "title": "Twenty Twenty-Four",
+  "status": "inactive",
+  "version": "1.3",
+  "update": "none",
+  "auto_update": "off",
+  "parent_theme": null,
+  "author": "WordPress.org"
 }
 ```
 
@@ -624,9 +649,10 @@ Before finishing the heartbeat:
 - [ ] `verdict`, `site_status`, `check_type` use allowed enums
 - [ ] Run findings in `findings[]`; handoff issues in `_sync.warnings[]` only
 - [ ] `findings` length ≤ 5, severities valid
-- [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` and/or `themes[]` with versions/update fields (not name-only / not updates-only when a full list exists); keys omitted when inventory was not collected
+- [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` **and** `themes[]` (both full installed lists when collected — not name-only / not updates-only); keys omitted only when that inventory was not collected
+- [ ] `themes[]` is not skipped because rollup `theme_updates` is `[]` — map installed themes from specialist `evidence.themes` / wordpress findings
 - [ ] `wp_version` / `plugin_count` / `pending_updates` set when WordPress specialist evidence has them; if `plugin_count` ≠ `plugins.length`, still POST both (DIT shows mismatch)
-- [ ] Plugin/theme items use ingest field names (`version`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`) — map aliases such as `current_version` / `available_version`
+- [ ] Plugin/theme items use ingest field names (`version`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`, theme `title` / `parent_theme` / `author`) — map aliases such as `current_version` / `available_version`
 - [ ] When `frontend-audit` ran, ingest JSON includes `frontend_audit` built from **full** `findings/frontend-audit.json` (not rollup compact stub); key omitted when the check did not run
 - [ ] `frontend_audit` has `pages[]` + `summary{}` when the specialist file has page evidence — never verdict-only / `core_web_vitals_lab`-only
 - [ ] `frontend_audit` has **no** `figma_comparison`; tooling omits Figma fields
