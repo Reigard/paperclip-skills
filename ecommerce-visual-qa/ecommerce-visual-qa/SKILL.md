@@ -27,49 +27,45 @@ This skill is client-agnostic. All client-specific data (URLs, QA persona, test 
 
 To add a new client: copy `config/_example.json` → `config/{new-client-slug}/flow-smoke-basic.json`, fill in the URLs and `qa_persona`.
 
-## eCommerce Flow QA (flow-smoke-basic)
+## Execution using Playwright
 
-When the run scope specifies `flow-smoke-basic`, the target is an eCommerce or booking site.
+This skill executes eCommerce checkout flows autonomously using the pre-built Playwright runner [playwright-runner.js](file:///d:/installl/Laragon/www/paperclip-skills/ecommerce-visual-qa/ecommerce-visual-qa/playwright-runner.js). Do NOT use interactive `chrome_devtools` MCP tools step-by-step.
 
-1. Locate the client's flow configuration at `config/{client_slug}/flow-smoke-basic.json` (see Config Discovery above).
-2. Do not rely on static screenshots. You MUST exercise the defined critical flows:
-   - Adding a product to the cart.
-   - Viewing the cart and validating the total.
-   - Proceeding to the checkout page.
-3. **Strict Constraint**: Do not process real payments or submit production orders. Only verify that the checkout renders payment fields in Sandbox/Test mode.
-4. Capture evidence (screenshots, network requests, console errors) at each state transition.
-5. If any pass criteria in the flow config fails (e.g., fatal error, missing payment fields, live payment gateway detected), the verdict is `FAIL` with `red_flag: true`.
-6. Output findings to paths defined in the config's `report` block (`report.html` and `report.json`). Default: `reports/flow-smoke-basic.html` and `findings/flow-smoke-basic.json`.
+### 1. Preparation
+Ensure that the `playwright` npm package and browsers are installed. If not, run:
+```bash
+npm install playwright
+npx playwright install chromium
+```
 
-## eCommerce Full E2E Checkout (flow-full-checkout)
+### 2. Running the Flows
+Run the automated Playwright runner using the client's configuration file.
+Where `{client_slug}` is provided by the orchestrator in the task context:
 
-When the run scope specifies `flow-full-checkout` or a flow config sets `"boundary": "full_checkout"`, execute a complete end-to-end transactional flow using Stripe test mode.
+- For basic smoke check (`flow-smoke-basic`):
+  ```bash
+  node playwright-runner.js --config config/{client_slug}/flow-smoke-basic.json
+  ```
 
-### Safety Gate (MANDATORY — check this first)
+- For full end-to-end checkout (`flow-full-checkout`):
+  ```bash
+  node playwright-runner.js --config config/{client_slug}/flow-full-checkout.json
+  ```
 
-Before entering ANY payment data, confirm Stripe test mode is active:
-- Look for: test mode badge, `pk_test_` key in page source/network, or `stripe.com/v3` with test indicators.
-- If a **live gateway** is detected (`pk_live_`), **immediately ABORT** the flow, set `red_flag: true`, verdict `FAIL`, and do NOT enter any card data.
+**CRITICAL RULES FOR AI AGENT EXECUTION (TOKEN SAVING):**
+1. **DO NOT run `node playwright-runner.js` multiple times**. Run it EXACTLY ONCE.
+2. **DO NOT poll the script status** using repeated `cat`, `tail`, or `ls` commands. Run the command and wait for it to finish.
+3. **DO NOT read or analyze screenshots** (e.g. using Vision/Image tools). Screenshots are for human operators. To avoid wasting AI tokens, you MUST read ONLY the generated JSON and HTML report files.
+4. **DO NOT auto-debug**. If the script throws an error, do not launch into an interactive debugging loop. Output the error and stop.
 
-### Flow Execution
+The script will launch Chromium, perform all configured steps (navigating, adding to cart, filling the billing form, handling Stripe card iframe input, and waiting for the order confirmation), capture screenshots (FOR HUMAN REVIEW ONLY), and output findings.
 
-1. Locate the client's flow configuration at `config/{client_slug}/flow-full-checkout.json` (see Config Discovery above).
-2. Use the `qa_persona` block from the config for **all** form fields (name, email, address, phone, country). Do not invent data.
-3. Execute each step defined in the flow's `steps` array using the browser.
-4. **Billing / Account fields**: Fill using `qa_persona`. If guest checkout is available, prefer it. If account creation is required, use `qa_persona.email` and a throwaway password (e.g. `QaTest2024!`).
-5. **Stripe card fields**: Enter exactly as specified in `payment_sandbox.test_card`:
-   - Card number: `4242 4242 4242 4242` (type digit by digit into the Stripe iframe)
-   - Expiry: `12/29` (or any valid future MM/YY)
-   - CVV: `123` (any 3-digit code)
-6. Click the Pay / Place Order / Bestellen button once all fields are filled.
-7. Wait for the order confirmation page. Capture: order number, success message, any receipt details.
-8. Capture evidence (screenshots) at each state transition: cart, checkout, payment fields, confirmation.
-9. If any `fail_criteria` is triggered, set verdict `FAIL` with `red_flag: true`.
-10. Output findings to paths defined in the config's `report` block. Default: `reports/flow-full-checkout.html` and `findings/flow-full-checkout.json`.
-
-### qa_persona
-
-The `qa_persona` in the config provides all test identity data. Always source form values from there — never hardcode values in the skill itself. This allows the config to be client-specific without changing the skill.
+### 3. Verification & Report Ingestion
+Once the script finishes:
+1. Verify that the script completed with exit code `0`. If it failed, inspect the console output.
+2. Read the generated JSON findings file (path defined in config's `report.json`, e.g., `findings/flow-smoke-basic.json`).
+3. Read the generated HTML report file (path defined in config's `report.html`, e.g., `reports/flow-smoke-basic.html`).
+4. Output findings and the report summary to the task context exactly as required below.
 
 ## Finding JSON Requirements
 
