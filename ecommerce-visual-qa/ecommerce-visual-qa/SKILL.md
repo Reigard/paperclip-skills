@@ -29,13 +29,14 @@ To add a new client: copy `config/_example.json` → `config/{new-client-slug}/f
 
 ## Execution using Playwright
 
-This skill executes eCommerce checkout flows autonomously using the pre-built Playwright runner [playwright-runner.js](file:///d:/installl/Laragon/www/paperclip-skills/ecommerce-visual-qa/ecommerce-visual-qa/playwright-runner.js). Do NOT use interactive `chrome_devtools` MCP tools step-by-step.
+This skill executes eCommerce checkout flows autonomously using the pre-built Playwright runner [playwright-runner.txt](file:///d:/installl/Laragon/www/paperclip-skills/ecommerce-visual-qa/ecommerce-visual-qa/playwright-runner.txt). Do NOT use interactive `chrome_devtools` MCP tools step-by-step.
 
 ### 1. Preparation
 Ensure that the `playwright` npm package and browsers are installed. If not, run:
 ```bash
 npm install playwright
 npx playwright install chromium
+cp playwright-runner.txt playwright-runner.js
 ```
 
 ### 2. Running the Flows
