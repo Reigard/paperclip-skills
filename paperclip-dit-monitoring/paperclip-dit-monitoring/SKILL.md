@@ -54,6 +54,7 @@ These produce a 201 in DIT but an almost-empty maintenance modal. **Never** do t
 | `jq` / extract only `verdict` + CWV lab from `findings/frontend-audit.json` | Same — drops per-page evidence, findings, screenshots, human verification |
 | Hand-build a thin `frontend_audit` with `verdict` alone (or verdict + scores) | Modal shows essentially only the verdict chip |
 | Send `plugins[]` / `themes[]` as **name-only** objects when specialist JSON has versions/update fields | Inventory table shows names without versions |
+| Send **updates-only** `plugins[]` when a full installed list exists in specialist evidence | `plugin_count` and table length diverge; DIT shows a count-mismatch note |
 | Omit `wp_version`, `plugin_count`, `pending_updates` when WordPress specialist evidence has them | Info grid hides those vitals |
 | Skip full mapping because the wake is cheap, status-only, or recovery | Ingest is independent of parent finalization — still map the full specialist files |
 
@@ -249,16 +250,34 @@ When the run collected **full plugin or theme inventory** (typical: `wp-health-a
 
 | Rule | Detail |
 | ---- | ------ |
-| Include `plugins[]` | Only when a per-plugin list exists in specialist evidence (not counts alone) |
+| Include `plugins[]` | Only when a per-plugin list exists in specialist evidence (not counts alone). Prefer **full installed inventory** (including must-use when collected), not updates-only |
 | Include `themes[]` | Only when a per-theme list exists in specialist evidence |
 | Omit when absent | Do **not** send `"plugins": []` or `"themes": []` — omit the key entirely |
 | Required item field | Each object must have `name` (plugin name or theme slug) |
 | Full objects required | When specialist JSON has `version` / `status` / `update` / `update_version` (or equivalents), **map them** — name-only `plugins[]` is forbidden |
 | Scalars required when known | Set `wp_version`, `plugin_count`, `pending_updates` from the same WordPress evidence; do not leave them null when the specialist file has values |
-| Keep scalars in sync | When `plugins[]` is sent, `plugin_count` = array length; `pending_updates` = plugins with update available |
+| Count mismatch | Prefer `plugin_count` = `plugins[]` length and `pending_updates` = plugins with an update. If they **differ**, still POST as-is (do not drop inventory). DIT UI shows a short count-mismatch note under WordPress inventory |
 | Do not duplicate | Inventory detail lives in `plugins[]` / `themes[]`; keep rollup highlights in `findings[]` (top 3–5), not full lists |
 
-Build each array from the run task folder — usually `findings/wp-health-audit.json` → `evidence.plugins` / `evidence.themes`, or the equivalent structure in `findings/wordpress-*.json`. Map field names to the ingest schema in [schema.md](references/schema.md#wordpress-inventory-plugins-themes) (snake_case: `update_version`, `auto_update`, `vulnerability_status`, `parent_theme`, etc.).
+Build each array from the run task folder — usually `findings/wp-health-audit.json` → `evidence.plugins` / `evidence.themes`, or the equivalent structure in `findings/wordpress-*.json`. **Do not** use rollup `update_intelligence.plugin_updates` alone as the full `plugins[]` (that list is updates-only).
+
+### Field name mapping (specialist / rollup → ingest)
+
+Always emit **ingest snake_case** in the POST body. Common aliases from WordPress evidence / `update_intelligence`:
+
+| Source field(s) | Ingest field |
+| --------------- | ------------ |
+| `version`, `current_version` | `version` |
+| `update_version`, `available_version` | `update_version` |
+| `update` (or set `available` when an available version exists, else `none`) | `update` |
+| `status` | `status` |
+| `auto_update`, `autoUpdate`, `autoupdate` | `auto_update` |
+| `vulnerability_status`, `vulnerability`, `vuln_status` | `vulnerability_status` |
+| `last_update_check`, `last_checked`, `checked_at` | `last_update_check` |
+
+If auto-update / vulnerability / last-check were not collected, omit those keys (DIT shows `—`). Do **not** invent values.
+
+Map field names to the ingest schema in [schema.md](references/schema.md#wordpress-inventory-plugins-themes).
 
 Example minimal plugin entry:
 
@@ -605,19 +624,26 @@ Before finishing the heartbeat:
 - [ ] `verdict`, `site_status`, `check_type` use allowed enums
 - [ ] Run findings in `findings[]`; handoff issues in `_sync.warnings[]` only
 - [ ] `findings` length ≤ 5, severities valid
-- [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` and/or `themes[]` with versions/update fields (not name-only); keys omitted when inventory was not collected
-- [ ] `wp_version` / `plugin_count` / `pending_updates` set when WordPress specialist evidence has them
+- [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` and/or `themes[]` with versions/update fields (not name-only / not updates-only when a full list exists); keys omitted when inventory was not collected
+- [ ] `wp_version` / `plugin_count` / `pending_updates` set when WordPress specialist evidence has them; if `plugin_count` ≠ `plugins.length`, still POST both (DIT shows mismatch)
+- [ ] Plugin/theme items use ingest field names (`version`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`) — map aliases such as `current_version` / `available_version`
 - [ ] When `frontend-audit` ran, ingest JSON includes `frontend_audit` built from **full** `findings/frontend-audit.json` (not rollup compact stub); key omitted when the check did not run
 - [ ] `frontend_audit` has `pages[]` + `summary{}` when the specialist file has page evidence — never verdict-only / `core_web_vitals_lab`-only
 - [ ] `frontend_audit` has **no** `figma_comparison`; tooling omits Figma fields
 - [ ] `frontend_audit.findings[]`, `human_verification[]`, and `tooling` included when present in specialist JSON; per-page issue arrays capped at 5 items; empty arrays omitted
 - [ ] `frontend_audit.pages[].desktop_screenshot_url` / `mobile_screenshot_url` and specialist report URLs are published Paperclip artifact URLs (not relative paths)
-- [ ] `plugin_count` / `pending_updates` consistent with `plugins[]` when the array is present
-- [ ] No forbidden shortcut from the table above (compact rollup copy, jq verdict+CWV, cheap-wake thin POST)
+- [ ] Prefer `plugin_count` / `pending_updates` consistent with `plugins[]`; if they differ, still POST (DIT shows mismatch) — do not drop inventory to “fix” the count
+- [ ] No forbidden shortcut from the table above (compact rollup copy, jq verdict+CWV, updates-only inventory, cheap-wake thin POST)
 - [ ] `_sync` reflects POST outcome (not pre-filled success)
 - [ ] Request body is direct JSON (not wrapped)
 - [ ] Ingest attempted only when resolved URL and token are present
 - [ ] Issue updated; maintenance task status unchanged by sync failures
+
+---
+
+## Documentation (DIT Monitoring repo)
+
+Edits to this skill (and other files under `paperclip/skills/`, `paperclip/agents/`, `paperclip/routines/`) are **not** logged in DIT Monitoring `docs/CHANGES.md`. That changelog covers the DIT Monitoring application only — see `.cursor/skills/update-changes/SKILL.md`.
 
 ---
 

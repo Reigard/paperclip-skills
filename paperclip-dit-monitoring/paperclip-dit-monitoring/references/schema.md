@@ -134,7 +134,9 @@ Optional full inventories for the DIT Monitoring maintenance modal (**WordPress 
 | Specialist collected theme list | Set `themes[]` with one object per theme |
 | No inventory for plugins or themes | **Omit** that key — do not send an empty array |
 
-`plugin_count` and `pending_updates` remain summary scalars for the table and info grid. When `plugins[]` is present, counts should **match** the array (installed total and plugins with `update: "available"` or non-null `update_version`).
+`plugin_count` and `pending_updates` remain summary scalars for the table and info grid. Prefer `plugin_count` = `plugins[]` length and `pending_updates` = plugins with `update: "available"` or non-null `update_version`. If counts and array length **differ**, still include both as collected — DIT shows a count-mismatch note in the inventory summary.
+
+**Field names in the POST body must be ingest snake_case** (`version`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`). Map common specialist aliases (`current_version` → `version`, `available_version` → `update_version`). Do not leave auto-update / vulnerability / checked empty when those values exist under alias names in the source JSON.
 
 ### `plugins[]` item
 
