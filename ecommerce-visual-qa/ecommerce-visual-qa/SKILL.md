@@ -56,7 +56,7 @@ Where `{client_slug}` is provided by the orchestrator in the task context:
 **CRITICAL RULES FOR AI AGENT EXECUTION (TOKEN SAVING):**
 1. **DO NOT run `node playwright-runner.js` multiple times**. Run it EXACTLY ONCE.
 2. **DO NOT poll the script status** using repeated `cat`, `tail`, or `ls` commands. Run the command and wait for it to finish.
-3. **DO NOT read or analyze screenshots** (e.g. using Vision/Image tools). Screenshots are for human operators. To avoid wasting AI tokens, you MUST read ONLY the generated JSON and HTML report files.
+3. **DO NOT read or analyze screenshots** (e.g. using Vision/Image tools). Screenshots are for human operators. To avoid wasting AI tokens, you MUST read ONLY the generated JSON report file. **DO NOT read the HTML report file.**
 4. **DO NOT auto-debug**. If the script throws an error, do not launch into an interactive debugging loop. Output the error and stop.
 
 The script will launch Chromium, perform all configured steps (navigating, adding to cart, filling the billing form, handling Stripe card iframe input, and waiting for the order confirmation), capture screenshots (FOR HUMAN REVIEW ONLY), and output findings.
@@ -65,7 +65,7 @@ The script will launch Chromium, perform all configured steps (navigating, addin
 Once the script finishes:
 1. Verify that the script completed with exit code `0`. If it failed, inspect the console output.
 2. Read the generated JSON findings file (path defined in config's `report.json`, e.g., `findings/flow-smoke-basic.json`).
-3. Read the generated HTML report file (path defined in config's `report.html`, e.g., `reports/flow-smoke-basic.html`).
+3. **DO NOT read the generated HTML report file**. It is strictly for human review and consumes too many tokens. Rely entirely on the JSON file.
 4. Output findings and the report summary to the task context exactly as required below.
 
 ## Finding JSON Requirements
