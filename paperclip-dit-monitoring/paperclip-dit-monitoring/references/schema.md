@@ -130,9 +130,10 @@ Optional full inventories for the DIT Monitoring maintenance modal (**WordPress 
 
 | Situation | Action |
 | --------- | ------ |
-| Specialist collected full plugin list (e.g. `wp-health-audit`, `wordpress-*`) | Set `plugins[]` with one object per **installed** plugin (not updates-only) |
-| Specialist collected theme list / theme inventory | Set `themes[]` with one object per **installed** theme (active, inactive, parent, child). **Do not** use empty `update_intelligence.theme_updates` as a reason to omit themes |
-| Themes mentioned only as a count in findings text (“N themes”) with no array | Still require `themes[]` from specialist JSON / WP-CLI; do not leave DIT without themes |
+| Specialist collected full plugin list (e.g. `wp-health-audit`, `wordpress-*`) | Set `plugins[]` with one object per **installed** plugin (not updates-only). Prefer top-level arrays on `findings/wordpress-*.json`; fallback `support-maintenance-inventory.json` → `wordpress.plugins` |
+| Specialist collected theme list / theme inventory | Set `themes[]` with one object per **installed** theme (active, inactive, parent, child). **Do not** use empty `update_intelligence.theme_updates` as a reason to omit themes. Same fallback path as plugins |
+| Themes mentioned only as a count in findings text (“N themes”) with no array | Still require `themes[]` from specialist JSON / inventory file / WP-CLI; do not leave DIT without themes |
+| `plugin_count` known but arrays only in inventory file / HTML | Still POST full `plugins[]` / `themes[]` from inventory file — **never** POST scalars without arrays when lists exist |
 | No inventory for plugins or themes | **Omit** that key — do not send an empty array |
 
 `plugin_count` and `pending_updates` remain summary scalars for the table and info grid. Prefer `plugin_count` = `plugins[]` length and `pending_updates` = plugins with `update: "available"` or non-null `update_version`. If counts and array length **differ**, still include both as collected — DIT shows a count-mismatch note in the inventory summary.

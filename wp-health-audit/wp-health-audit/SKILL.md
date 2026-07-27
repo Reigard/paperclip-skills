@@ -244,22 +244,61 @@ Flag every theme with `status=inactive` that is not a parent theme of the active
 
 ### 5) Build the findings JSON
 
-Write `findings/<check>.json` before writing the HTML report. Each finding must follow this structure:
+Write `findings/<check>.json` **before** writing the HTML report. The file must be a **JSON object** (not a bare array) so DIT ingest can copy inventory without reading HTML or `support-maintenance-inventory.json` alone.
+
+Required shape:
 
 ```json
 {
-  "severity": "critical | high | warning | info",
-  "category": "wordpress",
-  "title": "<short human title>",
-  "evidence": "<what you found>",
-  "recommendation": "<what to do>",
-  "owner": "dev | client | agency",
-  "follow_up": true,
-  "red_flag": false
+  "check": "<check-id e.g. wordpress-basic>",
+  "wp_version": "<installed core version>",
+  "plugin_count": 28,
+  "pending_updates": 10,
+  "plugins": [
+    {
+      "name": "Advanced Custom Fields PRO",
+      "version": "6.8.4",
+      "status": "active",
+      "update": "available",
+      "update_version": "6.8.6",
+      "auto_update": "off"
+    }
+  ],
+  "themes": [
+    {
+      "name": "ccj-new",
+      "title": "CCJ New",
+      "version": "1.0.0",
+      "status": "active",
+      "update": "none",
+      "update_version": null,
+      "auto_update": "off",
+      "parent_theme": null
+    }
+  ],
+  "findings": [
+    {
+      "severity": "critical | high | warning | info",
+      "category": "wordpress",
+      "title": "<short human title>",
+      "evidence": "<what you found>",
+      "recommendation": "<what to do>",
+      "owner": "dev | client | agency",
+      "follow_up": true,
+      "red_flag": false
+    }
+  ]
 }
 ```
 
-Severity guide for this skill:
+**Inventory arrays (mandatory when collected):**
+
+- `plugins` — **every** installed plugin (including must-use when collected). Not updates-only. Prefer DIT field names: `name`, `version`, `status`, `update`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`.
+- `themes` — **every** installed theme. Not updates-only; do not omit because `theme_updates` is empty.
+- `plugin_count` = `plugins.length`; `pending_updates` = count of plugins with an available update.
+- If the runner also wrote `support-maintenance-inventory.json`, **copy** `wordpress.plugins` / `wordpress.themes` into these top-level keys (map aliases to ingest names). Do not leave inventory only in that file.
+
+Severity guide for findings entries:
 - `critical` — duplicate plugins detected, or a core update that is a security release
 - `high` — major plugin/theme updates available, or core update pending (non-security)
 - `warning` — inactive plugins or themes present, minor/patch updates available
@@ -522,8 +561,12 @@ When triggered by a Routine, the Maintenance Orchestrator creates the parent iss
 
 ```txt
 <task-folder>/reports/<check>.html     ← rich HTML report (published via paperclip-publish-artifact)
-<task-folder>/findings/<check>.json    ← machine-readable findings array
+<task-folder>/findings/<check>.json    ← object with findings[] + full plugins[] + themes[] (DIT-shaped)
 ```
+
+HTML must include **Installed plugins**, **Installed themes**, and a separate **Updates pending** section when updates exist — not updates-only.
+
+Do not treat `support-maintenance-inventory.json` as a substitute for top-level `plugins` / `themes` in `findings/<check>.json`.
 
 ### Human Verification Checklist
 

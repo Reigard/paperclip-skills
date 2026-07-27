@@ -57,6 +57,8 @@ These produce a 201 in DIT but an almost-empty maintenance modal. **Never** do t
 | Send **updates-only** `plugins[]` when a full installed list exists in specialist evidence | `plugin_count` and table length diverge; DIT shows a count-mismatch note |
 | Send **updates-only** `themes[]` (or omit `themes[]`) when specialist evidence listed installed themes (e.g. “6 themes”) | DIT **Themes** tab never appears — UI only renders non-empty `themes[]` |
 | Use rollup `update_intelligence.theme_updates` alone as `themes[]` | That array is pending theme updates only (often `[]` even when themes are installed) |
+| POST `plugin_count` / `pending_updates` / `wp_version` **without** `plugins[]` / `themes[]` when full lists exist in `findings/wordpress-*.json` **or** `support-maintenance-inventory.json` → `wordpress.plugins` / `wordpress.themes` | DIT shows counts but **no WordPress inventory** panel |
+| Build inventory from parent `final-report.html` / rollup “Plugin Updates” table only | That table is pending updates — not full installed inventory |
 | Omit `wp_version`, `plugin_count`, `pending_updates` when WordPress specialist evidence has them | Info grid hides those vitals |
 | Skip full mapping because the wake is cheap, status-only, or recovery | Ingest is independent of parent finalization — still map the full specialist files |
 
@@ -234,8 +236,8 @@ Assemble one JSON object with **Paperclip run fields only**, plus technical `_sy
 | `wp_version` | `findings/wordpress-*.json` evidence | `null` when WordPress check not selected |
 | `plugin_count` | WordPress specialist evidence | Total installed plugins; should match `plugins[]` length when array is sent |
 | `pending_updates` | WordPress specialist evidence | Plugins with available updates; should match filtered `plugins[]` when array is sent |
-| `plugins` | `findings/wp-health-audit.json`, `findings/wordpress-*.json`, or equivalent evidence | Full plugin inventory — see [WordPress inventory arrays](#wordpress-inventory-arrays-plugins-themes); omit key if not collected |
-| `themes` | Same WordPress / health-audit evidence | Full theme inventory — same section; omit key if not collected |
+| `plugins` | `findings/wordpress-*.json` / `findings/wp-health-audit.json` top-level `plugins` (preferred); else `support-maintenance-inventory.json` → `wordpress.plugins` | Full plugin inventory — see [WordPress inventory arrays](#wordpress-inventory-arrays-plugins-themes); omit key if not collected |
+| `themes` | Same sources → top-level `themes` or `wordpress.themes` | Full theme inventory — same section; omit key if not collected |
 | `frontend_audit` | `findings/frontend-audit.json` (+ published screenshot/report artifacts) | Merged output from **`frontend-audit` orchestrator** (Browser Health Agent sub-skills) — see [Frontend audit object](#frontend-audit-object); omit key when check did not run |
 | `craft_version` / `ee_version` | Relevant CMS check evidence | When applicable |
 | `red_flags` | All specialist JSON where `red_flag: true` | Array of short titles |
@@ -262,7 +264,13 @@ When the run collected **full plugin or theme inventory** (typical: `wp-health-a
 | Count mismatch | Prefer `plugin_count` = `plugins[]` length and `pending_updates` = plugins with an update. If they **differ**, still POST as-is (do not drop inventory). DIT UI shows a short count-mismatch note under WordPress inventory |
 | Do not duplicate | Inventory detail lives in `plugins[]` / `themes[]`; keep rollup highlights in `findings[]` (top 3–5), not full lists |
 
-Build each array from the run task folder — usually `findings/wp-health-audit.json` → `evidence.plugins` / `evidence.themes`, or the equivalent structure in `findings/wordpress-*.json`.
+Build each array from the run task folder, in this **priority order**:
+
+1. **Preferred:** top-level `plugins` / `themes` on `findings/wordpress-*.json` or `findings/wp-health-audit.json` (including `evidence.plugins` / `evidence.themes` when nested).
+2. **Fallback:** `support-maintenance-inventory.json` → `wordpress.plugins` / `wordpress.themes` (or `wordpress.wpCli.plugins` / `wordpress.wpCli.themes` if those are the full installed lists).
+3. **Never:** rollup `findings.json`, parent `final-report.html` “Plugin Updates” tables, or `update_intelligence.plugin_updates` / `theme_updates` alone.
+
+If (1) lacks arrays but (2) has full installed lists, **still POST** from (2) and add `_sync.warnings` that specialist findings JSON should be fixed next run. Do **not** POST scalars-only (`plugin_count` without `plugins[]`) when (2) has arrays.
 
 **Do not** use rollup `update_intelligence.plugin_updates` alone as the full `plugins[]` (updates-only).  
 **Do not** use rollup `update_intelligence.theme_updates` alone as the full `themes[]` (pending theme updates only — often empty while several themes are installed).
@@ -650,7 +658,9 @@ Before finishing the heartbeat:
 - [ ] Run findings in `findings[]`; handoff issues in `_sync.warnings[]` only
 - [ ] `findings` length ≤ 5, severities valid
 - [ ] When specialist evidence includes full plugin/theme inventory, ingest JSON includes `plugins[]` **and** `themes[]` (both full installed lists when collected — not name-only / not updates-only); keys omitted only when that inventory was not collected
-- [ ] `themes[]` is not skipped because rollup `theme_updates` is `[]` — map installed themes from specialist `evidence.themes` / wordpress findings
+- [ ] Source order for inventory: `findings/wordpress-*.json` top-level arrays first; else `support-maintenance-inventory.json` → `wordpress.plugins` / `wordpress.themes` — never final-report updates table alone
+- [ ] Do **not** POST `plugin_count` without `plugins[]` when a full list exists in findings or `support-maintenance-inventory.json`
+- [ ] `themes[]` is not skipped because rollup `theme_updates` is `[]` — map installed themes from specialist findings or inventory file
 - [ ] `wp_version` / `plugin_count` / `pending_updates` set when WordPress specialist evidence has them; if `plugin_count` ≠ `plugins.length`, still POST both (DIT shows mismatch)
 - [ ] Plugin/theme items use ingest field names (`version`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`, theme `title` / `parent_theme` / `author`) — map aliases such as `current_version` / `available_version`
 - [ ] When `frontend-audit` ran, ingest JSON includes `frontend_audit` built from **full** `findings/frontend-audit.json` (not rollup compact stub); key omitted when the check did not run
@@ -659,7 +669,7 @@ Before finishing the heartbeat:
 - [ ] `frontend_audit.findings[]`, `human_verification[]`, and `tooling` included when present in specialist JSON; per-page issue arrays capped at 5 items; empty arrays omitted
 - [ ] `frontend_audit.pages[].desktop_screenshot_url` / `mobile_screenshot_url` and specialist report URLs are published Paperclip artifact URLs (not relative paths)
 - [ ] Prefer `plugin_count` / `pending_updates` consistent with `plugins[]`; if they differ, still POST (DIT shows mismatch) — do not drop inventory to “fix” the count
-- [ ] No forbidden shortcut from the table above (compact rollup copy, jq verdict+CWV, updates-only inventory, cheap-wake thin POST)
+- [ ] No forbidden shortcut from the table above (compact rollup copy, jq verdict+CWV, updates-only inventory, scalars-without-arrays, cheap-wake thin POST)
 - [ ] `_sync` reflects POST outcome (not pre-filled success)
 - [ ] Request body is direct JSON (not wrapped)
 - [ ] Ingest attempted only when resolved URL and token are present
