@@ -130,11 +130,16 @@ Optional full inventories for the DIT Monitoring maintenance modal (**WordPress 
 
 | Situation | Action |
 | --------- | ------ |
-| Specialist collected full plugin list (e.g. `wp-health-audit`, `wordpress-*`) | Set `plugins[]` with one object per plugin |
-| Specialist collected theme list | Set `themes[]` with one object per theme |
+| Specialist collected full plugin list (e.g. `wp-health-audit`, `wordpress-*`) | Set `plugins[]` with one object per **installed** plugin (not updates-only) |
+| Specialist collected theme list / theme inventory | Set `themes[]` with one object per **installed** theme (active, inactive, parent, child). **Do not** use empty `update_intelligence.theme_updates` as a reason to omit themes |
+| Themes mentioned only as a count in findings text (“N themes”) with no array | Still require `themes[]` from specialist JSON / WP-CLI; do not leave DIT without themes |
 | No inventory for plugins or themes | **Omit** that key — do not send an empty array |
 
-`plugin_count` and `pending_updates` remain summary scalars for the table and info grid. When `plugins[]` is present, counts should **match** the array (installed total and plugins with `update: "available"` or non-null `update_version`).
+`plugin_count` and `pending_updates` remain summary scalars for the table and info grid. Prefer `plugin_count` = `plugins[]` length and `pending_updates` = plugins with `update: "available"` or non-null `update_version`. If counts and array length **differ**, still include both as collected — DIT shows a count-mismatch note in the inventory summary.
+
+**Field names in the POST body must be ingest snake_case** (`version`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`, plus theme fields `title`, `parent_theme`, `author`, `update_source`). Map common specialist aliases (`current_version` → `version`, `available_version` → `update_version`). Do not leave auto-update / vulnerability / checked empty when those values exist under alias names in the source JSON.
+
+DIT shows a **Themes** tab only when `themes[]` is a non-empty array in the ingest body.
 
 ### `plugins[]` item
 
@@ -170,6 +175,8 @@ Shape mirrors WP-CLI / specialist JSON from the run task folder. Extra keys are 
 ## Frontend audit (`frontend_audit`)
 
 Optional **Front-end / Browser Health Agent** block from the **`frontend-audit`** specialist check (real Chrome via chrome-devtools-mcp — console, network, CWV, performance, regressions). Send it **in the ingest POST body** when `findings/frontend-audit.json` exists. DIT Monitoring shows it in the maintenance modal under **Frontend audit** (collapsed by default).
+
+**Source:** full specialist `findings/frontend-audit.json` only. Do **not** POST the compact `frontend_audit` stub from rollup `findings.json` (`core_web_vitals_lab`, top-level `accessibility_score` / finding-count scalars without `pages[]` and nested `summary{}`) — DIT ignores those keys and the modal looks empty aside from verdict.
 
 **Not in scope:** Figma / visual design comparison — do **not** send `figma_comparison` in new ingests.
 

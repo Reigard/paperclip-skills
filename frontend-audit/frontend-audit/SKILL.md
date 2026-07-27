@@ -111,7 +111,7 @@ Omit keys when a sub-skill did not run, was blocked, or produced empty data — 
 
 **Red flags** on important pages: JS console error; CWV degradation vs baseline; HTTP 5xx; public page behind login.
 
-Write **`findings/frontend-audit.json`** before HTML.
+Write **`findings/frontend-audit.json`** before HTML. The merged file is the **only** correct source for DIT `frontend_audit` ingest — it must keep `pages[]`, `summary{}`, `findings[]`, `human_verification[]`, and `tooling` (when produced). Do **not** replace it with a compact rollup-style stub (`core_web_vitals_lab` / top-level Lighthouse scores without `pages[]`). Compact summaries belong in parent rollup `findings.json` only (orchestrator-owned).
 
 ### 5) HTML report
 
