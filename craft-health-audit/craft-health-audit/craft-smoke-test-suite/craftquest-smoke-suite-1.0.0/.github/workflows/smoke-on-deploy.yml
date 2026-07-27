@@ -1,0 +1,66 @@
+# smoke-on-deploy.yml
+# ─────────────────────────────────────────────────────────────────────────────
+# Runs the smoke suite when your deploy platform fires a repository_dispatch
+# event. See ci/triggers/*.md for the copy-paste trigger setup per platform.
+#
+# Install: copy this file to .github/workflows/smoke-on-deploy.yml in the repo
+# that holds this suite, then wire your deploy platform to POST a
+# repository_dispatch with event_type "site-deployed".
+# ─────────────────────────────────────────────────────────────────────────────
+name: Smoke — on deploy
+
+on:
+  repository_dispatch:
+    types: [site-deployed]
+  # Allow manual runs from the Actions tab too.
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to smoke test (overrides smoke.config.js)'
+        required: false
+
+concurrency:
+  group: smoke-on-deploy
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # repository_dispatch can pass a URL via client_payload.base_url.
+      SMOKE_BASE_URL: >-
+        ${{ github.event.client_payload.base_url
+            || github.event.inputs.base_url
+            || '' }}
+      SMOKE_SLACK_WEBHOOK: ${{ secrets.SMOKE_SLACK_WEBHOOK }}
+      SMOKE_CP_USERNAME: ${{ secrets.SMOKE_CP_USERNAME }}
+      SMOKE_CP_PASSWORD: ${{ secrets.SMOKE_CP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run install:browsers
+
+      - name: Run smoke suite
+        id: smoke
+        run: npm test
+
+      - name: Notify Slack on failure
+        if: failure()
+        run: npm run notify -- --status failure
+        env:
+          SMOKE_SLACK_WEBHOOK: ${{ secrets.SMOKE_SLACK_WEBHOOK }}
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

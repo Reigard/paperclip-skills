@@ -1,0 +1,21 @@
+{
+  "name": "craftquest-smoke-suite",
+  "version": "1.0.0",
+  "description": "A copy-paste smoke test suite for Craft CMS sites. Edit smoke.config.js, run on deploy, get pinged in Slack when something breaks.",
+  "license": "SEE LICENSE IN LICENSE.md",
+  "private": true,
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install --with-deps chromium",
+    "notify": "node ci/notify.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}
