@@ -1,12 +1,12 @@
 ---
 name: frontend-audit
 description: Orchestrator for the Front-end / Browser Health Agent — merges sub-skill partials (console, network, CWV, third-party, a11y, regression), sets verdict, writes findings/frontend-audit.json and reports/frontend-audit.html. Requires chrome-devtools-mcp and Browser Health sub-skills. Use with frontend-site-crawl when multi-page scope is needed.
-compatibility: "Requires chrome-devtools-mcp and Browser Health sub-skills attached to the agent. See paperclip/agents/frontend-browser-health-agent/AGENT.md."
+compatibility: "Requires chrome-devtools-mcp and Browser Health sub-skills attached to the Front-end / Browser Health Agent."
 ---
 
 # Frontend Audit (orchestrator)
 
-**Skill id:** `frontend-audit` — **not** the agent name. This skill **orchestrates** the [Front-end / Browser Health Agent](../../../agents/frontend-browser-health-agent/AGENT.md): it does not replace the focused sub-skills.
+**Skill id:** `frontend-audit` — **not** the agent name. This skill **orchestrates** Browser Health sub-skills on the **Front-end / Browser Health Agent**; it does not replace the focused sub-skills.
 
 **Agent:** Front-end / Browser Health Agent — real Chrome via **chrome-devtools-mcp**.
 
@@ -77,7 +77,7 @@ After all pages audited, run **`frontend-deploy-regression`** once (loads prior 
 
 ### 4) Merge partials
 
-Build merged structure for **`findings/frontend-audit.json`** (ingest shape — see `paperclip-dit-monitoring` [schema.md](../../paperclip-dit-monitoring/paperclip-dit-monitoring/references/schema.md)):
+Build merged structure for **`findings/frontend-audit.json`** (ingest shape — field list in **paperclip-dit-monitoring** skill `references/schema.md`):
 
 **Per page (`pages[]`)** — merge by URL from partials:
 
@@ -141,9 +141,8 @@ paperclip-update-issue-status --issue <child-issue> --status done
 
 Forms/CRM, checkout, analytics firing, cookie consent, interactive widgets — assign Owner/Due. No Figma sign-off (use `agency-visual-qa`).
 
-## Related
+## Related skills (attach on the same agent)
 
-- **Agent overview:** [frontend-browser-health-agent/AGENT.md](../../../agents/frontend-browser-health-agent/AGENT.md)
-- **`frontend-site-crawl`** — URL scope
-- **`paperclip-dit-monitoring`** — DIT ingest mapping
-- **`agency-visual-qa`** — visual/design (separate agent)
+- **`frontend-site-crawl`** — URL scope when multi-page
+- **`paperclip-dit-monitoring`** — DIT ingest mapping (orchestrator-owned POST)
+- **`agency-visual-qa`** — visual/design QA (separate agent/skill)

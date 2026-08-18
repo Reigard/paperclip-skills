@@ -12,7 +12,7 @@ Determines **which URLs** the **Front-end / Browser Health Agent** should audit.
 
 **Discovery MCP providers:** [references/discovery-mcp.md](references/discovery-mcp.md) — which Paperclip MCP server to use for URL search.
 
-**Agent overview:** [../../agents/frontend-browser-health-agent/AGENT.md](../../agents/frontend-browser-health-agent/AGENT.md)
+Run under the **Front-end / Browser Health Agent** with **`frontend-audit`** attached on the same agent.
 
 ## When to use
 

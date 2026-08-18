@@ -330,7 +330,7 @@ Full multi-item examples: [examples.md](references/examples.md).
 
 ### Frontend audit object (`frontend_audit`)
 
-When the run selected **`frontend-audit`** (Front-end / Browser Health Agent orchestrator — with sub-skills `frontend-browser-console`, `frontend-network-health`, `frontend-performance-cwv`, `frontend-third-party-scripts`, `frontend-accessibility-audit`, `frontend-deploy-regression`), add a **`frontend_audit`** object from merged **`findings/frontend-audit.json`**. See [frontend-browser-health-agent/AGENTS.md](../../../agents/frontend-browser-health-agent/AGENTS.md).
+When the run selected **`frontend-audit`** (Front-end / Browser Health Agent; sub-skills `frontend-browser-console`, `frontend-network-health`, `frontend-performance-cwv`, `frontend-third-party-scripts`, `frontend-accessibility-audit`, `frontend-deploy-regression`), add a **`frontend_audit`** object from merged **`findings/frontend-audit.json`**. Map the **full** specialist file — not rollup compact stubs.
 
 **Hard source rule:** map from the **full specialist file** `findings/frontend-audit.json` only. Do **not** use the compact `frontend_audit` block inside rollup `findings.json` (that stub is for human/rollup summary — wrong field names for DIT).
 
@@ -674,12 +674,6 @@ Before finishing the heartbeat:
 - [ ] Request body is direct JSON (not wrapped)
 - [ ] Ingest attempted only when resolved URL and token are present
 - [ ] Issue updated; maintenance task status unchanged by sync failures
-
----
-
-## Documentation (DIT Monitoring repo)
-
-Edits to this skill (and other files under `paperclip/skills/`, `paperclip/agents/`, `paperclip/routines/`) are **not** logged in DIT Monitoring `docs/CHANGES.md`. That changelog covers the DIT Monitoring application only — see `.cursor/skills/update-changes/SKILL.md`.
 
 ---
 

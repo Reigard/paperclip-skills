@@ -10,7 +10,7 @@ Sub-skill for **Front-end / Browser Health Agent**. Detects **JavaScript console
 
 **Orchestrator:** `frontend-audit` — do not write `findings/frontend-audit.json` from this skill alone.
 
-**MCP guide:** [../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md](../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md)
+**MCP guide:** follow the chrome-devtools-mcp bootstrap steps in the **frontend-audit** skill (attach both skills to the same agent).
 
 ## Output
 

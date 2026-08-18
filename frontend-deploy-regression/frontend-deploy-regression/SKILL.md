@@ -46,7 +46,7 @@ Set `red_flag: true` on regression findings when:
 - Important page (homepage, primary landing, issue critical URL)
 - New JS console error **or** CWV degradation
 
-Matches agent rule from [../../../agents/frontend-browser-health-agent/AGENT.md](../../../agents/frontend-browser-health-agent/AGENT.md).
+Set `red_flag: true` on regression findings when the page is important (homepage, primary landing, issue critical URL) and there is a new JS console error or CWV degradation — same rule as the **Front-end / Browser Health Agent** contract.
 
 ## Build partial
 

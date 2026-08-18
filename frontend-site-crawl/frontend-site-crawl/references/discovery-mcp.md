@@ -4,7 +4,7 @@ Paperclip agents may attach **multiple MCP servers**. URL discovery and browser 
 
 Agent-level template: [agent-config.md](agent-config.md) § MCP configuration.
 
-Audit MCP workflow (separate): [../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md](../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md).
+Audit MCP workflow (separate): use the **frontend-audit** skill chrome-devtools-mcp reference on the same agent — not the discovery MCP.
 
 **This registry is extensible** — add rows when new crawl MCPs are attached in Paperclip. Use the **exact server id** from agent settings.
 

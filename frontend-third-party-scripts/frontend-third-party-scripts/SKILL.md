@@ -8,7 +8,7 @@ compatibility: "Requires chrome-devtools-mcp. Run after page load on current vie
 
 Sub-skill for **Front-end / Browser Health Agent**. Flags **third-party** integrations that fail, block render, or error in console/network.
 
-**MCP guide:** [../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md](../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md)
+**MCP guide:** follow the chrome-devtools-mcp bootstrap steps in the **frontend-audit** skill (attach both skills to the same agent).
 
 ## Output
 

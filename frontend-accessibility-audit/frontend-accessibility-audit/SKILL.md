@@ -8,7 +8,7 @@ compatibility: "Requires chrome-devtools-mcp with lighthouse_audit. Page loaded 
 
 Sub-skill for **Front-end / Browser Health Agent**. **Basic** accessibility — Lighthouse a11y score and top failing audits. Not a manual WCAG 2.x audit.
 
-**MCP guide:** [../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md](../../frontend-audit/frontend-audit/references/chrome-devtools-mcp.md)
+**MCP guide:** follow the chrome-devtools-mcp bootstrap steps in the **frontend-audit** skill (attach both skills to the same agent).
 
 ## Output
 
