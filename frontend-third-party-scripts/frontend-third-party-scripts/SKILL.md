@@ -1,7 +1,7 @@
 ---
 name: frontend-third-party-scripts
-description: Detect failing or slow third-party scripts (analytics, chat, forms, tag managers) using chrome-devtools-mcp list_network_requests and evaluate_script. Sub-skill merged by frontend-audit.
-compatibility: "Requires chrome-devtools-mcp. Run after page load on current viewport."
+description: Detect failing or slow third-party scripts (analytics, chat, forms, tag managers) using chrome-devtools-mcp list_network_requests and evaluate_script, or Lighthouse CLI third-party-summary when MCP tools are not in session. Sub-skill merged by frontend-audit.
+compatibility: "Prefers chrome-devtools-mcp after page load. Lighthouse CLI lab fallback when MCP tools are not callable."
 ---
 
 # Frontend Third-Party Scripts
@@ -17,6 +17,12 @@ Sub-skill for **Front-end / Browser Health Agent**. Flags **third-party** integr
 ```
 
 ## Procedure
+
+### Lab fallback
+
+When `evaluate_script` / `list_network_requests` are not callable, map third-party hosts from Lighthouse `third-party-summary` (and related audits) in `artifacts/frontend-audit/lighthouse-*.json`. Set `"tool": "lighthouse-cli"`. Finding `source`: `lighthouse`. Mark DOM enumeration `skipped: true` with reason `mcp_not_in_session`.
+
+If **neither** MCP **nor** Lighthouse JSON exist → `{ "blocked": true, "blocked_reason": "mcp_not_in_session" }`, stop.
 
 ### 1) Enumerate script hosts
 
@@ -61,7 +67,7 @@ Common vendors to label in `vendor` field: `Google Tag Manager`, `Google Analyti
 }
 ```
 
-Findings: failed analytics on production → `high` or `warning` depending on client tracking requirements; always set `owner` appropriately (`dev` vs `client`).
+Findings: failed analytics on production → `high` or `warning` depending on client tracking requirements; always set `owner` appropriately (`dev` vs `client`). Use stable `id` (`front.third-party:gtm`), `scope: front`, `recommendation`, and `follow_up: true` only for failed/blocked vendors that need work.
 
 `summary.third_party_issue_count`.
 

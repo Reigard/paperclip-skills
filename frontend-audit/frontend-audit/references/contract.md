@@ -1,6 +1,6 @@
 # Front-end / Browser Health Agent — Report Contracts
 
-Specialist check id: `frontend-audit` (orchestrator). Audits **live browser behaviour** via real Chrome (chrome-devtools-mcp). Sub-skills write partials under `artifacts/frontend-audit/partials/`; this contract describes the **merged** `findings/frontend-audit.json`. Not HTML-only analysis. **No Figma or design comparison.**
+Specialist check id: `frontend-audit` (orchestrator). Prefers **live browser behaviour** via real Chrome (chrome-devtools-mcp). When those tools are not in the session, a **Lighthouse CLI lab fallback** is allowed (`verdict: PARTIAL`, `tooling.browser_tool: lighthouse-cli`). Sub-skills write partials under `artifacts/frontend-audit/partials/`; this contract describes the **merged** `findings/frontend-audit.json`. Not HTML-only analysis. **No Figma or design comparison.**
 
 ## Output paths
 
@@ -146,6 +146,8 @@ Overall `rating` should reflect the worst of LCP/CLS/INP/TBT when multiple metri
 ```json
 {
   "severity": "critical | high | warning | info",
+  "id": "front.console:uncaught",
+  "scope": "front",
   "category": "frontend",
   "title": "string",
   "evidence": "string",
@@ -154,10 +156,12 @@ Overall `rating` should reflect the worst of LCP/CLS/INP/TBT when multiple metri
   "follow_up": true,
   "red_flag": false,
   "page_url": "string | null",
-  "source": "chrome-devtools-mcp | lighthouse | playwright | curl | manual",
+  "source": "chrome-devtools-mcp | lighthouse | lighthouse-cli | curl | manual",
   "evidence_type": "browser-smoke | screenshot | performance-trace | http | regression | accessibility"
 }
 ```
+
+`id` is stable across weekly runs (no timings or scores). `scope` is `front` for browser/performance issues, `cms` only for WordPress/security, `other` when the work is neither. `follow_up: true` only for work items; pass/tooling notes use `follow_up: false`. Keep measurements in `evidence`, not `title`.
 
 **Red flag rule:** set `red_flag: true` when an **important page** (homepage, primary landing, or issue-scoped critical URL) has a JavaScript console error **or** CWV degradation vs baseline (or poor CWV on production when in scope).
 
@@ -188,8 +192,8 @@ When no prior audit exists: `{ "available": false, "regressions": [] }`.
 
 | Field | Description |
 | --- | --- |
-| `browser_tool` | Tool actually used (prefer `chrome-devtools-mcp`) |
-| `browser_tool_available` | boolean — real browser required |
+| `browser_tool` | Tool actually used: `chrome-devtools-mcp` (full path) or `lighthouse-cli` (lab fallback) |
+| `browser_tool_available` | boolean — `true` only when in-session chrome-devtools-mcp tools ran |
 | `lighthouse_available` | boolean |
 
 Do **not** include `figma_mcp_available`.
@@ -212,15 +216,15 @@ No Figma or visual design sign-off items — those belong to `agency-visual-qa`.
 
 | Verdict | When |
 | --- | --- |
-| `PASS` | All audited pages pass hard gates; no `critical`/`high` findings unless scoped out |
-| `FAIL` | Reachable pages have material browser health defects or regressions |
-| `BLOCKED` | Target unreachable, real browser tooling missing, or >50% pages blocked |
-| `PARTIAL` | Issue explicitly requests partial scope, or some pages blocked but others audited |
+| `PASS` | MCP path only: all audited pages pass hard gates; no `critical`/`high` findings unless scoped out; `tooling.browser_tool` is `chrome-devtools-mcp` and `browser_tool_available` is `true` |
+| `FAIL` | Reachable pages have material browser health defects or regressions (MCP or lab fallback) |
+| `BLOCKED` | Target unreachable, **no MCP and no Lighthouse CLI**, or >50% pages blocked |
+| `PARTIAL` | Issue explicitly requests partial scope; some pages blocked but others audited; **or lab fallback** (MCP tools not in session, Lighthouse CLI ran) |
 
-Hard gates (any failure on an audited page prevents `PASS`):
+Hard gates (any failure on an audited page prevents `PASS`; they do **not** prevent `PARTIAL`):
 
 - Wrong page (404, login gate, password wall)
 - `red_flag: true` finding present
 - Poor CWV on production scope when performance is in scope
 
-Never use `PASS with gaps` or `probably passed`.
+Lab fallback never uses `PASS`. Never use `PASS with gaps` or `probably passed`. Do not use Playwright or Firecrawl as `browser_tool`.

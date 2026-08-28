@@ -1,7 +1,7 @@
 ---
 name: frontend-performance-cwv
-description: Capture lab Core Web Vitals (LCP, INP, CLS, TBT) and performance trace insights via chrome-devtools-mcp performance_start_trace / performance_analyze_insight. Sub-skill merged by frontend-audit.
-compatibility: "Requires chrome-devtools-mcp with performance tools. Navigate to URL before trace."
+description: Capture lab Core Web Vitals (LCP, INP, CLS, TBT) via chrome-devtools-mcp performance_start_trace / performance_analyze_insight, or Lighthouse CLI performance audits when MCP tools are not in session. Sub-skill merged by frontend-audit.
+compatibility: "Prefers chrome-devtools-mcp performance tools. Lighthouse CLI lab fallback when MCP tools are not callable."
 ---
 
 # Frontend Performance & CWV
@@ -17,6 +17,12 @@ Sub-skill for **Front-end / Browser Health Agent**. Lab **Core Web Vitals** and 
 ```
 
 ## Procedure
+
+### Lab fallback
+
+When `performance_start_trace` is not callable, extract LCP / CLS / TBT from Lighthouse performance audits in `artifacts/frontend-audit/lighthouse-*.json`. Set `"tool": "lighthouse-cli"`, `core_web_vitals.source: "lighthouse_lab"`, `performance.trace_available: false`. Omit `inp_ms` when LH did not report INP. Finding `source`: `lighthouse`.
+
+If **neither** MCP trace **nor** Lighthouse JSON exist → `{ "blocked": true, "blocked_reason": "mcp_not_in_session" }`, stop.
 
 ### 1) Performance trace (preferred)
 
@@ -57,9 +63,11 @@ Production + poor → `high` finding. Dev/staging → `warning` unless issue exc
 
 `pages[].data.core_web_vitals` + `pages[].data.performance` (Lighthouse performance score optional from trace insights only — do not confuse with `lighthouse_audit` a11y in accessibility sub-skill).
 
-Findings when `rating` is `poor` or long tasks block main thread on important pages.
+Findings when `rating` is `poor` or long tasks block main thread on important pages. Use stable `id` (`front.lcp:homepage`), `scope: front`, and put LCP/TBT numbers in `evidence` — not in `title`. `follow_up: true` when poor/needs improvement on production; good CWV is `follow_up: false`.
 
 ## Do not
 
 - Report CrUX/field data without explicit CrUX source
-- Use `lighthouse_audit` for performance when trace tools work — trace is primary for CWV in this agent
+- Use MCP `lighthouse_audit` for performance when trace tools work — trace is primary for CWV on the MCP path
+
+On lab fallback, Lighthouse CLI performance audits **are** the CWV source (`lighthouse_lab`).

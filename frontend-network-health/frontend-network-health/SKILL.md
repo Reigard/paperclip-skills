@@ -1,7 +1,7 @@
 ---
 name: frontend-network-health
-description: Audit network requests on a loaded page via chrome-devtools-mcp — 404/500, CORS, mixed content, failed scripts/styles/images, broken images (evaluate_script). Sub-skill merged by frontend-audit.
-compatibility: "Requires chrome-devtools-mcp. Page navigated by frontend-audit orchestrator."
+description: Audit network requests on a loaded page via chrome-devtools-mcp — 404/500, CORS, mixed content, failed scripts/styles/images, broken images (evaluate_script). Lighthouse CLI network-requests when MCP tools are not in session. Sub-skill merged by frontend-audit.
+compatibility: "Prefers chrome-devtools-mcp after orchestrator navigation. Lighthouse CLI lab fallback when MCP tools are not callable."
 ---
 
 # Frontend Network Health
@@ -17,6 +17,12 @@ Sub-skill for **Front-end / Browser Health Agent**. Checks **network failures** 
 ```
 
 ## Procedure
+
+### Lab fallback
+
+When `list_network_requests` is not callable, map failed/blocked items from Lighthouse `network-requests` (and related audits) in `artifacts/frontend-audit/lighthouse-*.json`. Set `"tool": "lighthouse-cli"`. Broken-image DOM check (`evaluate_script`) is skipped (`skipped: true`, reason `mcp_not_in_session`) unless LH already lists failed images. Finding `source`: `lighthouse`.
+
+If **neither** MCP **nor** Lighthouse JSON exist → `{ "blocked": true, "blocked_reason": "mcp_not_in_session" }`, stop.
 
 ### 1) List requests
 
@@ -65,7 +71,7 @@ Merge with failed `image` requests from step 1 (dedupe by URL).
 }
 ```
 
-Findings for critical document/script 404 on important pages → `high`. Secondary asset 404 → `warning`.
+Findings for critical document/script 404 on important pages → `high`. Secondary asset 404 → `warning`. Each finding needs stable `id` (`front.network:failed-request`), `scope: front`, `recommendation`, and `follow_up: true` for real failures. Clean pass (`No failed network requests`) uses `follow_up: false`.
 
 `summary.failed_request_count`, `summary.broken_image_count`.
 

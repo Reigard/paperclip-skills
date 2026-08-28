@@ -232,7 +232,7 @@ Assemble one JSON object with **Paperclip run fields only**, plus technical `_sy
 | `response_ms` | Server infra findings evidence | Integer or `null` |
 | `tls_days_left` | `findings/server-infra-*.json` or ssl-domain check | Integer or `null` |
 | `tls_expires` | Same | ISO date or `null` |
-| `findings` | Merge all `findings/<check>.json` → top 3–5 | Map severity; see below |
+| `findings` | Merge specialist `findings[]` with `follow_up: true` first (cap 40) | Pass through checklist fields; see below |
 | `wp_version` | `findings/wordpress-*.json` evidence | `null` when WordPress check not selected |
 | `plugin_count` | WordPress specialist evidence | Total installed plugins; should match `plugins[]` length when array is sent |
 | `pending_updates` | WordPress specialist evidence | Plugins with available updates; should match filtered `plugins[]` when array is sent |
@@ -348,7 +348,7 @@ If the specialist file contains `pages[]` but your payload would omit them → *
 | Include `frontend_audit` | Only when `findings/frontend-audit.json` exists in the task folder |
 | Omit when absent | Do **not** send `"frontend_audit": null` or `{}` — omit the key entirely |
 | Source file | Read `findings/frontend-audit.json` → map `target`, `scope`, `summary`, `pages[]`, `findings[]`, `human_verification[]`, `tooling`, `baseline_comparison` (regression counts → `summary.regression_count` when present) |
-| Verdict map | Specialist `PASS` → `pass`, `FAIL` → `fail`, `BLOCKED` → `unknown`, `PARTIAL` → `warn` |
+| Verdict map | Specialist `PASS` → `pass`, `FAIL` → `fail`, `BLOCKED` → `unknown`, `PARTIAL` → `warn`. If `tooling.browser_tool` is not `chrome-devtools-mcp` (e.g. `lighthouse-cli`), map `frontend_audit.verdict` to **`warn`** even if the specialist file says `PASS`. |
 | Screenshot URLs | Publish PNGs from `artifacts/frontend-audit/` via `paperclip-publish-artifact`; set `desktop_screenshot_url` / `mobile_screenshot_url` on each page item as full `https://paperclip.designingit.co/artifacts/...` URLs — never relative paths |
 | Specialist reports | Set `frontend_audit.report_url` / `report_json_url` to published `reports/frontend-audit.html` and `findings/frontend-audit.json` artifact URLs when available (separate from rollup `report_url` / `report_json_url`) |
 | Page counts | Copy `scope.pages_requested`, `scope.pages_audited`, `scope.pages_blocked`, `scope.mode` → `scope_mode`, and `scope.instruction` → `scope_instruction` when present |
@@ -358,11 +358,11 @@ If the specialist file contains `pages[]` but your payload would omit them → *
 | Summary extended counts | Map `summary.third_party_issue_pages`, `accessibility_issue_pages`, `regression_count` when present; else derive from merged pages / `baseline_comparison.regressions[]` |
 | Baseline comparison | Map `baseline_comparison` from regression partial when present (`available`, `baseline_generated_at`, `baseline_source`, `regressions[]`); omit key when regression sub-skill skipped |
 | Blocked pages | When `status: "blocked"`, include `blocked_reason` from finding evidence when available |
-| Specialist findings | Map root `findings[]` → `frontend_audit.findings[]` with `severity`, `title`, `evidence`, `recommendation`, `page_url`, `owner`, `red_flag`; map specialist `warning` → ingest `medium`; send up to **20** items; preserve `red_flag: true` for JS errors and CWV regressions on important pages |
+| Specialist findings | Map root `findings[]` → `frontend_audit.findings[]` with `id`, `severity`, `scope` (`front`), `category`, `title`, `evidence`, `recommendation`, `follow_up`, `page_url`, `owner`, `red_flag`; map specialist `warning` → ingest `medium`; send up to **40** `follow_up: true` items; keep `follow_up: false` pass/tooling notes out of the checklist path; preserve `red_flag: true` for JS errors and CWV regressions on important pages |
 | Human verification | Map `human_verification[]` → same shape (`item`, `owner`, `due`); omit key when empty |
 | Tooling | Map `tooling.browser_tool`, `browser_tool_available`, `lighthouse_available` only — **omit `figma_mcp_available`**; also set top-level `browser_tool` for backward compatibility |
 | Figma | **Never send** `figma_comparison` — not part of browser health agent |
-| Do not duplicate | Rollup `findings[]` stays top 3–5 across all checks; specialist browser health detail lives in `frontend_audit.findings[]` and `frontend_audit.pages[]` |
+| Do not duplicate | Rollup `findings[]` is checklist-ready `follow_up: true` items (cap 40), not a 3–5 highlight reel; specialist browser health detail still lives in `frontend_audit.findings[]` and `frontend_audit.pages[]`. Do **not** copy the same frontend issue into both arrays |
 
 Example minimal object:
 
@@ -413,10 +413,14 @@ Example minimal object:
   ],
   "findings": [
     {
+      "id": "front.console:homepage",
       "severity": "info",
+      "scope": "front",
+      "category": "frontend",
       "title": "Homepage loaded without console errors",
       "evidence": "Desktop and mobile viewports checked.",
       "recommendation": "No action required.",
+      "follow_up": false,
       "page_url": "https://example.com/",
       "owner": "agency",
       "red_flag": false
@@ -478,13 +482,23 @@ Map each ingest finding item:
 
 ```json
 {
+  "id": "<stable id, e.g. wp.security:readme-html>",
   "severity": "<mapped>",
-  "title": "<finding.title>",
-  "detail": "<finding.evidence or finding.recommendation, truncated>"
+  "scope": "cms | front | other",
+  "category": "<wordpress | frontend | performance | …>",
+  "title": "<stable title, no versions/timings/counts>",
+  "detail": "<finding.evidence, truncated>",
+  "recommendation": "<finding.recommendation>",
+  "follow_up": true,
+  "red_flag": false
 }
 ```
 
-Sort by severity (critical first), take top **3–5**.
+Include every specialist finding with `follow_up: true` (cap **40**, severity critical first). Do **not** truncate to a 3–5 highlight reel — DIT builds the maintenance checklist from this run's findings plus `plugins[]` / `themes[]`.
+
+Set `follow_up: false` (and skip the checklist cap) for pass confirmations and agent diagnostics. Do **not** add rollup findings for plugin/theme/core updates that already exist in `plugins[]`, `themes[]`, or `wp_version`.
+
+Sort remaining display-only (`follow_up: false`) items after action items if you still send them for the Findings column.
 
 ### `_sync.warnings` vs `findings`
 

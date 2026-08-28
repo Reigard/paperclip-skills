@@ -568,6 +568,15 @@ HTML must include **Installed plugins**, **Installed themes**, and a separate **
 
 Do not treat `support-maintenance-inventory.json` as a substitute for top-level `plugins` / `themes` in `findings/<check>.json`.
 
+### Finding JSON (checklist-ready)
+
+Each `findings[]` item must include `id`, `severity`, `scope` (`cms` for this skill), `category` (`wordpress` or `security`), `title`, `evidence`, `recommendation`, `owner`, `follow_up`, and `red_flag`.
+
+- `id` is stable across weekly runs (`wp.security:readme-html`, `wp.indexing:blog-public`, `wp.debug:display`). Never put versions, plugin counts, or day-counts in `id` or `title` — those belong in `evidence`.
+- `follow_up: true` only when a human should do work on the next maintenance visit (security exposure, indexing failure, debug on production, xmlrpc open, etc.).
+- `follow_up: false` for healthy/pass confirmations (`robots.txt is healthy`, `SSL certificate valid`, `Search engine visibility OK`, `Indexing hygiene is correct`).
+- Do **not** emit one finding per plugin/theme/core update. Pending updates live in `plugins[]` / `themes[]` / `wp_version` so DIT Monitoring can build checklist steps from inventory. On each pending plugin/theme row set `recommendation` (major-jump risk, what to test on staging). Do not set `scope` on inventory rows.
+
 ### Human Verification Checklist
 
 Every run appends a `## ⚠️ Human Verification Required` section at the bottom of the HTML report listing items the agent cannot verify automatically. This section is **mandatory** — no checklist item silently drops. Items include (but are not limited to):

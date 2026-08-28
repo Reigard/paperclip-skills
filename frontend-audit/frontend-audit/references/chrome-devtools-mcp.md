@@ -2,7 +2,7 @@
 
 Reference for all **Front-end / Browser Health Agent** sub-skills. Official tool list: [ChromeDevTools/chrome-devtools-mcp tool-reference](https://github.com/ChromeDevTools/chrome-devtools-mcp/blob/main/docs/tool-reference.md).
 
-**Prerequisite:** `chrome-devtools-mcp` server connected in the agent session. If unavailable → sub-skill / run `BLOCKED`; record `tooling.browser_tool_available: false`.
+**Prerequisite:** chrome-devtools-mcp tools must be **callable in this agent run** (`navigate_page`, `list_pages`, …). Host CLI `claude mcp list` → Connected is **not** sufficient. If in-session tools are missing → **lab fallback** (below), not an immediate full-run stop.
 
 ## Session bootstrap (once per audit run)
 
@@ -117,6 +117,43 @@ Cross-reference hosts with `list_network_requests` failures / long durations for
 - Same origin as seed only.
 - Do not throttle network (`emulate.networkConditions`) unless the issue explicitly requests slow-network testing.
 
-## When MCP is missing
+## When MCP is missing (in-session tools)
 
-Fallback: `paperclip-qa-visual-check` for screenshots only. Mark console, network, CWV, a11y partials as `blocked: true`. Full browser health gate → orchestrator verdict `BLOCKED`.
+CLI `claude mcp list` → Connected does **not** count. Tools must be callable in this run (`navigate_page`, `emulate`, `list_console_messages`, `list_network_requests`, `performance_start_trace`, `take_screenshot`, `lighthouse_audit`).
+
+**Lab fallback (weekly-health allowed):**
+
+1. Resolve Chrome-for-Testing from the host chrome-devtools MCP config (`executablePath` / cache under the paperclip user home). Do not invent a browser path.
+2. Run Lighthouse CLI once per `(url, viewport)`:
+
+```bash
+# Desktop
+npx --yes lighthouse "<url>" \
+  --output=json --output=html \
+  --output-path="artifacts/frontend-audit/lighthouse-<slug>-desktop" \
+  --preset=desktop \
+  --only-categories=performance,accessibility,best-practices \
+  --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage"
+
+# Mobile
+npx --yes lighthouse "<url>" \
+  --output=json --output=html \
+  --output-path="artifacts/frontend-audit/lighthouse-<slug>-mobile" \
+  --form-factor=mobile --screenEmulation.mobile \
+  --only-categories=performance,accessibility,best-practices \
+  --chrome-flags="--headless --no-sandbox --disable-dev-shm-usage"
+```
+
+Pass `--chrome-path` when the host config names a Chrome-for-Testing binary. Lighthouse writes `*.report.json` / `*.report.html` (or `.json` / `.html`) next to `--output-path`; sub-skills read those JSON files.
+
+3. Map LH JSON into the same partials:
+   - console → `audits["errors-in-console"]` (lab, not live console)
+   - network → failed/blocked items from `network-requests` / related audits
+   - CWV → LCP / CLS / TBT from performance audits; label `source: "lighthouse_lab"` (never `lab_trace` or field/CrUX). Omit INP when LH did not report it.
+   - a11y → accessibility category score + failing audit titles
+   - third-party → `third-party-summary` / third-party script hosts when present
+4. Screenshots: LH report screenshot, or `paperclip-qa-visual-check`, into `artifacts/frontend-audit/<slug>-desktop.png` / `<slug>-mobile.png`. **Not** Firecrawl or Playwright.
+5. Write the same merged JSON/HTML contract. `verdict` is **`PARTIAL`** (or `FAIL` if hard gates fire). Never `PASS`.
+6. Add finding `severity: info`, `follow_up: false`, `id: "front.tooling:mcp-not-in-session"`, title like `Browser evidence is Lighthouse CLI (chrome-devtools-mcp not in session)`.
+
+If Lighthouse CLI also fails → orchestrator verdict `BLOCKED`, `tooling.browser_tool_available: false`, `lighthouse_available: false`.

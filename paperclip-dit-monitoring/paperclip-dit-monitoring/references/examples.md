@@ -108,7 +108,8 @@ Use this shape **immediately before** the ingest POST. Do not pre-fill success f
       "update_version": "22.0",
       "auto_update": "off",
       "last_update_check": "2026-07-11T17:40:00Z",
-      "vulnerability_status": "no known issues"
+      "vulnerability_status": "no known issues",
+      "recommendation": "Major jump (21.4 → 22.0). Test SEO output and sitemaps on staging before production."
     },
     {
       "name": "WooCommerce",
@@ -234,14 +235,15 @@ Publish `findings.json` (or `dashboard-summary.json`) with `paperclip-publish-ar
   "tls_expires": "2026-08-24",
   "findings": [
     {
+      "id": "wp.security:tls-expiry",
       "severity": "medium",
-      "title": "12 plugin updates pending",
-      "detail": "Non-security updates available; security patches applied."
-    },
-    {
-      "severity": "low",
-      "title": "PageSpeed mobile 68",
-      "detail": "Below team target of 75; no regression vs last month."
+      "scope": "cms",
+      "category": "wordpress",
+      "title": "TLS certificate expires within 60 days",
+      "detail": "45 days remaining.",
+      "recommendation": "Renew the certificate before expiry and confirm HTTPS after the swap.",
+      "follow_up": true,
+      "red_flag": false
     }
   ],
   "wp_version": "6.8.1",
@@ -280,9 +282,15 @@ When **`frontend-audit`** ran, add **`frontend_audit`** from `findings/frontend-
   "site_status": "up",
   "findings": [
     {
+      "id": "front.console:about",
       "severity": "high",
-      "title": "Console errors on /about/",
-      "detail": "Uncaught ReferenceError in main.js on the About page."
+      "scope": "front",
+      "category": "frontend",
+      "title": "Console errors on About page",
+      "detail": "Uncaught ReferenceError in main.js on the About page.",
+      "recommendation": "Fix the missing reference before the next deploy.",
+      "follow_up": true,
+      "red_flag": true
     }
   ],
   "report_json_url": "https://paperclip.designingit.co/artifacts/SUP-4821/a1b2-findings.json",

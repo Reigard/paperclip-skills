@@ -33,9 +33,11 @@ Example: `artifacts/frontend-audit/partials/frontend-browser-console.json`
 
 | Field | Notes |
 | --- | --- |
-| `blocked` | `true` when MCP step could not run (tool missing, page unreachable) |
+| `tool` | `chrome-devtools-mcp` or `lighthouse-cli` |
+| `blocked` | `true` when **neither** MCP nor Lighthouse JSON could run (tool missing, page unreachable). Lab fallback from LH JSON is **not** blocked. |
 | `pages[].data` | Skill-specific payload — see each sub-skill |
-| `findings[]` | Same finding shape as [contract.md](contract.md) — orchestrator merges and dedupes |
+| `findings[]` | Same finding shape as [contract.md](contract.md) — include `id`, `scope`, `recommendation`, `follow_up`; orchestrator merges and dedupes |
 | `summary` | Optional counters for orchestrator `summary` rollup |
+| `skipped` | Optional; `true` with reason `mcp_not_in_session` for MCP-only fields the lab path cannot fill |
 
 Orchestrator **must not** invent data for a missing partial — if partial is absent and skill was in scope, treat as `blocked`.

@@ -91,7 +91,9 @@
   ],
   "findings": [
     {
+      "id": "front.pass:homepage",
       "severity": "info",
+      "scope": "front",
       "category": "frontend",
       "title": "Homepage passed browser health checks",
       "evidence": "chrome-devtools-mcp: zero console errors, zero failed requests, CWV good on desktop and mobile.",
@@ -224,7 +226,9 @@
   ],
   "findings": [
     {
+      "id": "front.console:uncaught",
       "severity": "high",
+      "scope": "front",
       "category": "frontend",
       "title": "JavaScript console error on homepage",
       "evidence": "Uncaught TypeError: app.init is not a function (main.js:88)",
@@ -237,8 +241,10 @@
       "evidence_type": "browser-smoke"
     },
     {
+      "id": "front.cwv:homepage",
       "severity": "high",
       "category": "frontend",
+      "scope": "front",
       "title": "CWV regression on homepage after deploy",
       "evidence": "LCP 4200ms (was 1840ms); TBT 680ms (was 120ms). Baseline from 2026-07-14.",
       "recommendation": "Profile main thread and third-party scripts; compare bundle diff.",
@@ -250,8 +256,10 @@
       "evidence_type": "regression"
     },
     {
+      "id": "front.crawl:blocked-page",
       "severity": "warning",
       "category": "frontend",
+      "scope": "front",
       "title": "Blocked page during crawl: /members/",
       "evidence": "HTTP 302 to /wp-login.php — login gate.",
       "recommendation": "Provide credentials or exclude /members/ from crawl scope.",
@@ -379,3 +387,86 @@ The agent fills this template. Inline CSS only; no external dependencies. **No F
 ```
 
 Save as `reports/frontend-audit.html`. Screenshot paths are relative to the report file location.
+
+---
+
+## Example C — Lab fallback, PARTIAL (MCP tools not in session)
+
+Use this shape when chrome-devtools-mcp tools are not callable and Lighthouse CLI ran. Never `PASS`.
+
+### findings/frontend-audit.json (excerpt)
+
+```json
+{
+  "check": "frontend-audit",
+  "verdict": "PARTIAL",
+  "generated_at": "2026-08-28T00:00:00Z",
+  "target": {
+    "issue": "SUP-0000-child-1",
+    "environment": "production",
+    "seed_url": "https://example.com/",
+    "crawl_manifest_path": null
+  },
+  "scope": {
+    "mode": "single_page",
+    "instruction": "Homepage only",
+    "pages_requested": 1,
+    "pages_audited": 1,
+    "pages_blocked": 0
+  },
+  "summary": {
+    "console_error_pages": 0,
+    "failed_request_pages": 0,
+    "broken_image_pages": 0,
+    "poor_cwv_pages": 0,
+    "third_party_issue_pages": 0,
+    "accessibility_issue_pages": 0,
+    "regression_count": 0,
+    "critical_findings": 0,
+    "high_findings": 0,
+    "warning_findings": 0,
+    "red_flags": 0
+  },
+  "pages": [
+    {
+      "url": "https://example.com/",
+      "final_url": "https://example.com/",
+      "http_status": 200,
+      "title": "Example homepage",
+      "status": "audited",
+      "core_web_vitals": {
+        "lcp_ms": 2100,
+        "cls": 0.05,
+        "tbt_ms": 140,
+        "source": "lighthouse_lab",
+        "rating": "good"
+      },
+      "performance": {
+        "lighthouse_performance_score": 88,
+        "trace_available": false
+      }
+    }
+  ],
+  "findings": [
+    {
+      "id": "front.tooling:mcp-not-in-session",
+      "severity": "info",
+      "scope": "front",
+      "category": "frontend",
+      "title": "Browser evidence is Lighthouse CLI (chrome-devtools-mcp not in session)",
+      "evidence": "In-session DevTools MCP tools were not callable. Lighthouse CLI lab run on Chrome-for-Testing.",
+      "recommendation": "Restore chrome-devtools-mcp in the agent ACPX session for live console, network, and traces.",
+      "owner": "agency",
+      "follow_up": false,
+      "red_flag": false,
+      "source": "lighthouse",
+      "evidence_type": "lab"
+    }
+  ],
+  "tooling": {
+    "browser_tool": "lighthouse-cli",
+    "browser_tool_available": false,
+    "lighthouse_available": true
+  }
+}
+```

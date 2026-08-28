@@ -75,6 +75,8 @@ Do not use `file://` paths, filesystem paths, or placeholder domains in the inge
 
 **findings[].severity:** `critical` | `high` | `medium` | `low` | `info`
 
+**findings[] extra fields (checklist):** `id`, `recommendation`, `scope` (`front` \| `cms` \| `other`), `category`, `follow_up`, `red_flag` — pass through from specialist JSON. Required on `follow_up: true` items. Use `other` for infra, access, triage, or anything that is not Front or CMS work.
+
 ## Severity mapping (report-contract → ingest)
 
 `$support-maintenance-orchestration` `references/report-contract.md` finding JSON uses `warning`. Map when building ingest:
@@ -154,6 +156,7 @@ DIT shows a **Themes** tab only when `themes[]` is a non-empty array in the inge
 | `auto_update` | string \| null | no | e.g. `on`, `off` |
 | `last_update_check` | string (ISO 8601) \| null | no | When WordPress last checked for updates |
 | `vulnerability_status` | string \| null | no | e.g. `no known issues`, `patches available` |
+| `recommendation` | string \| null | no | When `update` is available: risk/action for the DIT checklist (major jumps, test scope). Omit on rows with no update. Do not set `scope` — inventory is always CMS |
 
 ### `themes[]` item
 
@@ -170,6 +173,7 @@ DIT shows a **Themes** tab only when `themes[]` is a non-empty array in the inge
 | `parent_theme` | string \| null | no | Parent slug for child themes |
 | `author` | string \| null | no | Theme author |
 | `update_source` | string \| null | no | e.g. `private` for non-wordpress.org updates |
+| `recommendation` | string \| null | no | When an update is available: risk/action for the DIT checklist. Omit otherwise. No `scope` field |
 
 Shape mirrors WP-CLI / specialist JSON from the run task folder. Extra keys are stored in the payload but ignored by validation unless documented above.
 
@@ -188,13 +192,13 @@ Optional **Front-end / Browser Health Agent** block from the **`frontend-audit`*
 | Run selected `frontend-audit` and `findings/frontend-audit.json` exists | Set `frontend_audit` from that file + published artifact URLs |
 | Check not selected or JSON missing | **Omit** the key — do not send `null` or `{}` |
 
-Rollup `findings[]` remains the cross-check summary (top 3–5). Per-page console/network/CWV/screenshot detail lives in `frontend_audit.pages[]`.
+Rollup `findings[]` is the checklist-ready action list (`follow_up: true`, cap 40), not a 3–5 highlight reel. Per-page console/network/CWV/screenshot detail lives in `frontend_audit.pages[]`.
 
 ### Top-level `frontend_audit` fields
 
 | Field | Type | Required | Notes |
 | ----- | ---- | -------- | ----- |
-| `verdict` | string | no | Mapped specialist verdict: `pass`, `fail`, `warn`, `unknown` |
+| `verdict` | string | no | Mapped specialist verdict: `pass`, `fail`, `warn`, `unknown`. Lab fallback (`lighthouse-cli`) must be `warn`, not `pass`. |
 | `generated_at` | string (ISO 8601) | no | From specialist JSON |
 | `environment` | string | no | `development`, `staging`, or `production` |
 | `seed_url` | string | no | Seed URL from the audit |
@@ -340,12 +344,16 @@ String items (message only) are also accepted.
 | `title` | string | yes | Finding title |
 | `detail` | string | no | Optional combined detail (UI fallback) |
 | `evidence` | string | no | What was observed |
-| `recommendation` | string | no | Suggested action |
+| `recommendation` | string | no | Suggested action — required when `follow_up` is true |
+| `id` | string | no | Stable identity (`front.lcp:homepage`). No measurements |
+| `scope` | string | no | `front`, `cms`, or `other` |
+| `category` | string | no | e.g. `frontend`, `performance` |
+| `follow_up` | boolean | no | `true` if this should become a DIT checklist step |
 | `page_url` | string | no | Page where issue occurred |
 | `owner` | string | no | `dev`, `client`, or `agency` |
 | `red_flag` | boolean | no | Hard gate marker — `true` for JS errors or CWV regression on important pages |
 
-Send up to **20** specialist findings. Map specialist `warning` → `medium`.
+Send up to **40** specialist findings with `follow_up: true`. Map specialist `warning` → `medium`. Pass/tooling notes keep `follow_up: false`.
 
 ### `frontend_audit.human_verification[]` item
 
@@ -359,8 +367,8 @@ Send up to **20** specialist findings. Map specialist `warning` → `medium`.
 
 | Field | Type | Notes |
 | ----- | ---- | ----- |
-| `browser_tool` | string | Tool actually used (prefer `chrome-devtools-mcp`) |
-| `browser_tool_available` | boolean | Real browser MCP/CLI available |
+| `browser_tool` | string | Tool actually used: `chrome-devtools-mcp` (live) or `lighthouse-cli` (lab fallback) |
+| `browser_tool_available` | boolean | `true` only when in-session chrome-devtools-mcp tools ran |
 | `lighthouse_available` | boolean | Lighthouse enrichment available |
 
 Do **not** send `figma_mcp_available` or `figma_comparison`.

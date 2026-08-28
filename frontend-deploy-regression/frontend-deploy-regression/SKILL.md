@@ -72,7 +72,7 @@ Set `red_flag: true` on regression findings when the page is important (homepage
 }
 ```
 
-Orchestrator copies `baseline_comparison` to merged `findings/frontend-audit.json` and merges regression findings.
+Orchestrator copies `baseline_comparison` to merged `findings/frontend-audit.json` and merges regression findings. Regression findings need stable `id` (`front.regression:console`, `front.cwv:homepage`), `scope: front`, `recommendation`, and `follow_up: true`. Keep before/after measurements in `evidence`, not in `title`.
 
 ## Inputs
 
