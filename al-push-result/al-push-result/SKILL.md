@@ -77,30 +77,29 @@ No secrets or tokens in `summary`.
 
 Copy `request_id` and `gateway_request_id` from inbound `_al` (or recovered `meta`). **Never invent new ones.**
 
-### `notify` (Paperclip-native runs)
+### `notify` and `push_url` (Paperclip-native runs)
 
 Access Layer **service name(s)** (`Service.name`). AL POSTs the result to those services’ Result URLs even when there is **no** inbound command from a service.
 
-**When the run did not come through AL** (routine started manually or on a schedule inside Paperclip — no service caller, no AL gateway envelope / no `gateway_request_id` from AL), **always** set:
+**When the run did not come through AL** (routine started manually or on a schedule inside Paperclip — no service caller, no AL gateway envelope / no `gateway_request_id` from AL), **always** set on outbound `_al`:
 
 ```json
-"notify": "DIT Monitoring"
+"notify": "DIT Monitoring",
+"push_url": "https://dit-al.designingit.co/api/push/run-summary"
 ```
 
-(A one-element array `["DIT Monitoring"]` is also fine.) Use that exact service name; do not invent aliases.
+(`notify` as a one-element array `["DIT Monitoring"]` is also fine.) Use that exact service name; do not invent aliases. Set **`push_url`** explicitly on native runs — there is no inbound envelope to copy it from. Do not rely on env fallbacks when you can stamp this URL on `_al`.
 
 That is how Paperclip-native results reach DIT (Maintenance modal) **through Access Layer**. Do **not** skip `notify` and do **not** POST ingest yourself. Do **not** add Slack (or any chat service) to `notify` — that would dump the run into a DM. `_al.summary` stays the short human text on the push; Slack **command** DMs only apply when the run came from AL (pending `gateway_request_id`).
 
-**When the run came from AL** (inbound `_al` / `meta` with AL `gateway_request_id`, `source: "access-layer"`, etc.): do **not** add `notify` for this reason — AL already delivers via the command’s Result recipients. Preserve `notify` only if it was already present on the inbound/result object.
-
-Unknown or inactive names are skipped (push still succeeds). Services already notified via the command route are not POSTed twice. Still set `push_url` if known, or use `AL_CALLBACK_URL`.
+**When the run came from AL** (inbound `_al` / `meta` with AL `gateway_request_id`, `source: "access-layer"`, etc.): do **not** add `notify` for this reason — AL already delivers via the command’s Result recipients. Preserve inbound **`push_url`** (and `notify` only if already present).
 
 ## Steps
 
 ### A. Resolve the business result
 
 1. If a JSON object was produced (domain skills or routine handoff) → use it as-is.
-2. For Support `/audit` / weekly-health: the business object **must** be the **DIT Monitoring ingest JSON** (`run_id` UUID, `check_type`, `client`, `site`, `verdict`, `findings`, optional `plugins` / `themes` / `frontend_audit`, required `_sync`, …). Access Layer forwards that object to DIT (`POST /api/external/v1/access-layer/runs`). That is what the Maintenance project modal renders. Map **full** specialist JSON (no compact stubs). Do **not** wrap the ingest object in `{ body }`, `{ payload }`, or the AL run-summary envelope; `payload.processed` in the push body **is** that ingest object (plus `_al`). Do **not** POST the ingest to DIT from Paperclip.
+2. For Support `/audit` / weekly-health: the business object **must** be the **DIT Monitoring ingest JSON** (`run_id` UUID, `check_type`, `client`, `site`, **`timestamp`**, **`last_run_at`**, `verdict`, `findings`, optional `plugins` / `themes` / `frontend_audit`, required `_sync`, …). The orchestrator must apply **`support-maintenance-orchestration`** → `references/report-contract.md` → **DIT Monitoring ingest mapping** before handoff (severity `warning` → `medium`, `update` boolean → `"none"`, required timestamps). Access Layer forwards that object to DIT (`POST /api/external/v1/access-layer/runs`). That is what the Maintenance project modal renders. Map **full** specialist JSON (no compact stubs). Do **not** wrap the ingest object in `{ body }`, `{ payload }`, or the AL run-summary envelope; `payload.processed` in the push body **is** that ingest object (plus `_al`). Do **not** POST the ingest to DIT from Paperclip.
 3. If there is **no** usable result → create `{ "_al": {} }` and set `empty_result: true` later. Optional agent/routine/issue context goes **inside `_al` only**.
 4. Do **not** modify `_sync` or any monitoring / business fields. `_sync` is required on the ingest object; leave it as built with the specialist mapping.
 
@@ -108,7 +107,7 @@ Unknown or inactive names are skipped (push still succeeds). Services already no
 
 5. Start from existing `result._al` if present; otherwise `{}`.
 6. Ensure correlation ids, `agent_id`, `company_id`, `command`, `pushed_at`, `source`, `direction`, and keep `push_url` when known.
-7. If this is a **Paperclip-native** run (not from AL / no service caller), set `notify` to `"DIT Monitoring"` (see above). If the run came from AL, leave `notify` as already present or omit it.
+7. If this is a **Paperclip-native** run (not from AL / no service caller), set `notify` to `"DIT Monitoring"` and `push_url` to `https://dit-al.designingit.co/api/push/run-summary` (see above). If the run came from AL, leave `notify` as already present or omit it and preserve inbound `push_url`.
 8. Always set `summary` from `slack-summary.txt` when present (see above); generate the fallback if missing.
 9. Set `empty_result: true` when step A used the minimal shell.
 10. Assign `result._al =` merged object. Touch nothing else.
@@ -126,7 +125,7 @@ Resolve `AL_INBOUND_TOKEN` in this order (first hit wins):
 
 Resolve the POST URL in this order:
 
-1. **`_al.push_url`** from the inbound envelope / merged `_al` (AL stamps this from Settings → Access Layer push URL, falling back to the public URL, + `/api/push/run-summary`). **Prefer this.**
+1. **`_al.push_url`** from the inbound envelope / merged `_al` (AL stamps this on AL-originated runs; **Paperclip-native** runs must set `https://dit-al.designingit.co/api/push/run-summary` on `_al` — see **notify and push_url** above).
 2. **`AL_CALLBACK_URL`** on the current agent (or orchestrator) — optional **full URL override** (tunnels, alternate hosts). Not read by AL server code.
 3. If env `ACCESS_LAYER_PUBLIC_URL` exists: `{ACCESS_LAYER_PUBLIC_URL}/api/push/run-summary`.
 4. If none → comment an error; do not guess localhost or production hosts.
@@ -187,7 +186,7 @@ The top-level `"summary"` field **must equal** `_al.summary` (the Slack DM text 
 - Delivers to command-route recipients when `gateway_request_id` matches a pending request.
 - Also POSTs to HTTP services listed in `_al.notify` (by service name), even with no pending request.
 - HTTP Result recipient **DIT Monitoring** POSTs `payload.processed` (the ingest JSON) to `/api/external/v1/access-layer/runs` — that fills the Maintenance project modal.
-- Slack / DM (AL-originated commands only) uses `_al.summary` (`slack-summary.txt`), not the JSON. Paperclip-native runs must **not** land in Slack DM — use `notify`: `"DIT Monitoring"` only.
+- Slack / DM (AL-originated commands only) uses `_al.summary` (`slack-summary.txt`), not the JSON. Paperclip-native runs must **not** land in Slack DM — use `notify`: `"DIT Monitoring"` and stamp `push_url`: `https://dit-al.designingit.co/api/push/run-summary`.
 
 ## Environment / secrets
 
@@ -205,7 +204,7 @@ The top-level `"summary"` field **must equal** `_al.summary` (the Slack DM text 
 - Always include `_al.summary` (Slack-readable; prefer `slack-summary.txt` for `/audit`).
 - Support `/audit` business JSON is DIT ingest shape so the Maintenance modal can render it.
 - Always preserve inbound request ids.
-- For Paperclip-native runs (not via AL), set `_al.notify` to `"DIT Monitoring"`.
+- For Paperclip-native runs (not via AL), set `_al.notify` to `"DIT Monitoring"` and `_al.push_url` to `https://dit-al.designingit.co/api/push/run-summary`.
 - Prefer `_al.push_url`; use `AL_CALLBACK_URL` only as override.
 - Token: top-level orchestrator → AL Gateway → current / other agents.
 - Files are links only — never base64/file bodies in the push.

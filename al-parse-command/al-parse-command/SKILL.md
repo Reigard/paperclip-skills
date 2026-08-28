@@ -13,7 +13,7 @@ Parses the command envelope and exposes context. Does **not** call Access Layer 
 
 Always at the **start** of a run when the issue/routine payload came from Access Layer (fenced JSON with `input` and `_al`).
 
-**Do not run this skill** when the routine was started inside Paperclip (manual or schedule) with **no** Access Layer envelope. There is nothing to parse; inventing `_al` / `gateway_request_id` would make Access Layer treat the later push as a command Result and dump the payload into Slack DM. Paperclip-native runs skip this skill, do domain work, then **`al-push-result`** with `_al.notify`: `"DIT Monitoring"`.
+**Do not run this skill** when the routine was started inside Paperclip (manual or schedule) with **no** Access Layer envelope. There is nothing to parse; inventing `_al` / `gateway_request_id` would make Access Layer treat the later push as a command Result and dump the payload into Slack DM. Paperclip-native runs skip this skill, do domain work, then **`al-push-result`** with `_al.notify`: `"DIT Monitoring"` and `_al.push_url`: `https://dit-al.designingit.co/api/push/run-summary`.
 
 ## Envelope shape (from AL)
 
