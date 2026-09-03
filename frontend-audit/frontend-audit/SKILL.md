@@ -25,6 +25,8 @@ compatibility: "Requires Browser Health sub-skills on the Front-end / Browser He
 
 MCP workflow: [references/chrome-devtools-mcp.md](references/chrome-devtools-mcp.md). Partial schema: [references/partial-contract.md](references/partial-contract.md). Merged output: [references/contract.md](references/contract.md).
 
+Merged findings must keep **stable `id` values** (`front.lcp:homepage`, …) so parent **`dit-ingest-diff`** can match week to week. This skill does **not** run ingest diff. **`frontend-deploy-regression`** is a page baseline inside this audit — not DIT ingest `diff`.
+
 ## When to use
 
 - Maintenance check `frontend-audit` or post-deploy browser health smoke

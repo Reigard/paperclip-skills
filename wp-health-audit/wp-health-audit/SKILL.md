@@ -257,6 +257,7 @@ Required shape:
   "plugins": [
     {
       "name": "Advanced Custom Fields PRO",
+      "slug": "advanced-custom-fields-pro",
       "version": "6.8.4",
       "status": "active",
       "update": "available",
@@ -267,6 +268,7 @@ Required shape:
   "themes": [
     {
       "name": "ccj-new",
+      "slug": "ccj-new",
       "title": "CCJ New",
       "version": "1.0.0",
       "status": "active",
@@ -278,9 +280,11 @@ Required shape:
   ],
   "findings": [
     {
+      "id": "wp.security:readme-html",
       "severity": "critical | high | warning | info",
+      "scope": "cms",
       "category": "wordpress",
-      "title": "<short human title>",
+      "title": "<short human title — not copied into id>",
       "evidence": "<what you found>",
       "recommendation": "<what to do>",
       "owner": "dev | client | agency",
@@ -570,7 +574,7 @@ Do not treat `support-maintenance-inventory.json` as a substitute for top-level 
 
 ### Finding JSON (checklist-ready)
 
-Each `findings[]` item must include `id`, `severity`, `scope` (`cms` for this skill), `category` (`wordpress` or `security`), `title`, `evidence`, `recommendation`, `owner`, `follow_up`, and `red_flag`.
+Each `findings[]` item must include `id`, `severity`, `scope` (`cms` for this skill), `category` (`wordpress` or `security`), `title`, `evidence`, `recommendation`, `owner`, `follow_up`, and `red_flag`. **`id` must be a stable slug** (`wp.security:readme-html`), never a copy of `title`. Parent **`dit-ingest-diff`** matches on these ids and on plugin/theme `slug`; this skill does not run ingest diff.
 
 - `id` is stable across weekly runs (`wp.security:readme-html`, `wp.indexing:blog-public`, `wp.debug:display`). Never put versions, plugin counts, or day-counts in `id` or `title` — those belong in `evidence`.
 - `follow_up: true` only when a human should do work on the next maintenance visit (security exposure, indexing failure, debug on production, xmlrpc open, etc.).

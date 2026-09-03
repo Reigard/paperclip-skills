@@ -8,6 +8,8 @@ compatibility: "Runs after other Browser Health partials. Baseline optional — 
 
 Sub-skill for **Front-end / Browser Health Agent**. Detects **regressions after deploy** by diffing current audit data against the previous baseline.
 
+This is **not** **`dit-ingest-diff`**. That parent skill diffs two DIT ingest snapshots (`frontend_audit.findings[]` / pages) before Access Layer push. This sub-skill only writes `baseline_comparison` on the specialist `frontend-audit` JSON.
+
 **Orchestrator:** run **once** after all pages/viewports are audited.
 
 ## Output

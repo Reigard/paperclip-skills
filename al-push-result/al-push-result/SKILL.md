@@ -38,9 +38,19 @@ Merge into the result (create if missing). Preserve inbound `_al` keys (especial
   "pushed_at": "<ISO-8601 now>",
   "source": "access-layer",
   "direction": "outbound",
-  "empty_result": false
+  "empty_result": false,
+  "hasDiff": false
 }
 ```
+
+### `hasDiff` (required)
+
+Set after the business object is resolved. This skill does **not** compute the ingest `diff` (that is **`dit-ingest-diff`**, run by the orchestrator before this skill).
+
+- `hasDiff: true` — the business object has a non-empty top-level `diff` object (at least `against` plus one collection or `summary`).
+- `hasDiff: false` — `diff` is missing, empty, or not an object.
+
+**Missing `diff` is not an error.** Always push. Do not set `empty_result: true` only because `diff` is absent. Do not invent `diff`.
 
 ### `summary` (required)
 
@@ -99,7 +109,7 @@ That is how Paperclip-native results reach DIT (Maintenance modal) **through Acc
 ### A. Resolve the business result
 
 1. If a JSON object was produced (domain skills or routine handoff) → use it as-is.
-2. For Support `/audit` / weekly-health: the business object **must** be the **DIT Monitoring ingest JSON** (`run_id` UUID, `check_type`, `client`, `site`, **`timestamp`**, **`last_run_at`**, **`verdict`** (`pass`|`warn`|`fail`|`unknown` only — map rollup **`watch` → `warn`**, never send `watch`), **`site_status`** (required), **`report_json_url`** (required top-level URL to parent rollup `findings.json`, not child frontend JSON and not only in `_sync`), `findings`, optional `plugins` / `themes` / `frontend_audit`, required `_sync`, …). The orchestrator must apply **`support-maintenance-orchestration`** → `references/report-contract.md` → **DIT Monitoring ingest mapping** before handoff (severity `warning` → `medium`, `update` boolean → `"none"`, required timestamps). Access Layer forwards that object to DIT (`POST /api/external/v1/access-layer/runs`). That is what the Maintenance project modal renders. Map **full** specialist JSON (no compact stubs). Do **not** wrap the ingest object in `{ body }`, `{ payload }`, or the AL run-summary envelope; `payload.processed` in the push body **is** that ingest object (plus `_al`). Do **not** POST the ingest to DIT from Paperclip. **AL HTTP 2xx does not guarantee DIT accepted the payload** — DM may still return 422 on validation.
+2. For Support `/audit` / weekly-health: the business object **must** be the **DIT Monitoring ingest JSON** (`run_id` UUID, `check_type`, `client`, `site`, **`timestamp`**, **`last_run_at`**, **`verdict`** (`pass`|`warn`|`fail`|`unknown` only — map rollup **`watch` → `warn`**, never send `watch`), **`site_status`** (required), **`report_json_url`** (required top-level URL to parent rollup `findings.json`, not child frontend JSON and not only in `_sync`), `findings`, optional `plugins` / `themes` / `frontend_audit`, optional top-level **`diff`** from **`dit-ingest-diff`**, required `_sync`, …). The orchestrator must apply **`support-maintenance-orchestration`** → `references/report-contract.md` → **DIT Monitoring ingest mapping**, then **`dit-ingest-diff`** when a previous ingest exists, before handoff (severity `warning` → `medium`, `update` boolean → `"none"`, required timestamps). Access Layer forwards that object to DIT (`POST /api/external/v1/access-layer/runs`). That is what the Maintenance project modal renders. Map **full** specialist JSON (no compact stubs). Do **not** wrap the ingest object in `{ body }`, `{ payload }`, or the AL run-summary envelope; `payload.processed` in the push body **is** that ingest object (plus `_al`). Do **not** POST the ingest to DIT from Paperclip. **AL HTTP 2xx does not guarantee DIT accepted the payload** — DM may still return 422 on validation. **Do not skip this push when `diff` is missing.**
 3. If there is **no** usable result → create `{ "_al": {} }` and set `empty_result: true` later. Optional agent/routine/issue context goes **inside `_al` only**.
 4. Do **not** modify `_sync` or any monitoring / business fields. `_sync` is required on the ingest object; leave it as built with the specialist mapping.
 
@@ -110,7 +120,8 @@ That is how Paperclip-native results reach DIT (Maintenance modal) **through Acc
 7. If this is a **Paperclip-native** run (not from AL / no service caller), set `notify` to `"DIT Monitoring"` and `push_url` to `https://dit-al.designingit.co/api/push/run-summary` (see above). If the run came from AL, leave `notify` as already present or omit it and preserve inbound `push_url`.
 8. Always set `summary` from `slack-summary.txt` when present (see above); generate the fallback if missing.
 9. Set `empty_result: true` when step A used the minimal shell.
-10. Assign `result._al =` merged object. Touch nothing else.
+10. Set **`hasDiff`**: `true` when `result.diff` is a non-empty object; otherwise `false`. Absence of `diff` does not change `empty_result` and does not skip the push.
+11. Assign `result._al =` merged object. Touch nothing else.
 
 ### C. Resolve auth token
 
@@ -136,14 +147,14 @@ Optional Paperclip-side override of the push endpoint. Normally **omit it**: AL 
 
 ### E. Push to Access Layer
 
-10. `POST` the resolved URL with headers:
+12. `POST` the resolved URL with headers:
 
 ```
 Authorization: Bearer <AL_INBOUND_TOKEN>
 Content-Type: application/json
 ```
 
-11. Body:
+13. Body:
 
 ```json
 {
@@ -174,9 +185,9 @@ On failure of the run use `"status": "error"` but still push when possible.
 
 The top-level `"summary"` field **must equal** `_al.summary` (the Slack DM text when AL originated the command; for Paperclip-native it is still the short human summary on the AL push, not a Slack DM).
 
-12. HTTP 2xx → optional issue comment: `Pushed result to Access Layer`.
-13. Non-2xx → warn on the issue; do not fail the Paperclip run solely because of AL HTTP errors.
-14. Never put tokens or secrets into the JSON or issue text.
+14. HTTP 2xx → optional issue comment: `Pushed result to Access Layer`.
+15. Non-2xx → warn on the issue; do not fail the Paperclip run solely because of AL HTTP errors.
+16. Never put tokens or secrets into the JSON or issue text.
 
 ## What AL does after receive
 
@@ -201,6 +212,7 @@ The top-level `"summary"` field **must equal** `_al.summary` (the Slack DM text 
 - Only mutate `_al` on the result object.
 - Never touch `_sync`.
 - Always push, even for empty results.
+- Always set `_al.hasDiff` (`true` / `false`). Missing ingest `diff` is not an error and does not block the push.
 - Always include `_al.summary` (Slack-readable; prefer `slack-summary.txt` for `/audit`).
 - Support `/audit` business JSON is DIT ingest shape so the Maintenance modal can render it.
 - Always preserve inbound request ids.
