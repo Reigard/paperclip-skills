@@ -1,7 +1,7 @@
 {
-  "name": "craftquest-smoke-suite",
+  "name": "craft-cms-audit-smoke-suite",
   "version": "1.0.0",
-  "description": "Smoke tests invoked by the craft-health-audit skill.",
+  "description": "Per-run Playwright smoke tests invoked by the craft-cms-audit skill.",
   "private": true,
   "scripts": {
     "test": "playwright test"

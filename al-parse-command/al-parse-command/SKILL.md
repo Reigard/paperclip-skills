@@ -105,7 +105,7 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
    | `--front` | `front` | — | `frontend-audit` |
    | `--cms` | `cms` | unset | CMS check only |
    | `--cms --wordpress` (or `--wordpress`) | `cms` | `wordpress` | `wordpress-basic` |
-   | `--cms --craft` (or `--craft`) | `cms` | `craft` | `craft-cms-health-audit` |
+   | `--cms --craft` (or `--craft`) | `cms` | `craft` | `craft-cms-audit` |
    | `--front --cms` | `cms` + `front` | unset | CMS check + `frontend-audit` |
    | `--infra` | `infra` | — | `server-infra-basic` |
 
@@ -114,7 +114,7 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
    | `cms_subtype` | Check | Required agent |
    | --- | --- | --- |
    | `wordpress` | `wordpress-basic` | **WordPress Agent** |
-   | `craft` | `craft-cms-health-audit` | **Craft CMS Health Audit Agent** |
+   | `craft` | `craft-cms-audit` | **Craft CMS Health Audit Agent** |
    | unset | routine/project default | that CMS’s agent |
    | other known subtype (`ee`, …) | that platform’s check | that platform’s agent |
 
