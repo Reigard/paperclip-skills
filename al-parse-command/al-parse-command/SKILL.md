@@ -113,12 +113,12 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
 
    | `cms_subtype` | Check | Required agent |
    | --- | --- | --- |
-   | `wordpress` | `wordpress-basic` | **WordPress Agent** |
+   | `wordpress` | `wordpress-basic` | **WordPress Health Audit Agent** |
    | `craft` | `craft-cms-audit` | **Craft CMS Health Audit Agent** |
    | unset | routine/project default | that CMS’s agent |
    | other known subtype (`ee`, …) | that platform’s check | that platform’s agent |
 
-   **`--wordpress` assertion:** if this flag is present, the CMS child **must** be assigned to **WordPress Agent** and the CMS check **must** be `wordpress-basic` (or another `wordpress-*` check). Do **not** create a Craft CMS child. If the routine cannot satisfy that (wrong project CMS, `--craft` also set, Craft-only routine), set `audit.ok` to `false` with a clear `audit.error` — still continue so **al-push-result** can push an empty `_al` error. Front-only (`--front` without CMS) plus `--wordpress` **adds** the WordPress CMS check (the subtype means they asked for WP).
+   **`--wordpress` assertion:** if this flag is present, the CMS child **must** be assigned to **WordPress Health Audit Agent** and the CMS check **must** be `wordpress-basic` (or another `wordpress-*` check). Do **not** create a Craft CMS child. If the routine cannot satisfy that (wrong project CMS, `--craft` also set, Craft-only routine), set `audit.ok` to `false` with a clear `audit.error` — still continue so **al-push-result** can push an empty `_al` error. Front-only (`--front` without CMS) plus `--wordpress` **adds** the WordPress CMS check (the subtype means they asked for WP).
 
    Publish the plan on the context, for example:
 
@@ -139,7 +139,7 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
          "cms_subtype": "wordpress",
          "selected_checks": ["wordpress-basic"],
          "agents": {
-           "cms": "WordPress Agent",
+           "cms": "WordPress Health Audit Agent",
            "front": null,
            "infra": null
          }

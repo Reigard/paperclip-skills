@@ -23,7 +23,7 @@ Require stable `id` values from WordPress Agent. Examples:
 
 Do not treat inventory / pass confirmations as unresolved problems:
 
-- `follow_up: false` → `unresolved_risk` is `none` (streak may still increment).
+- `follow_up: false` → `unresolved_risk` is `none`. `weeks_observed` still follows the UTC-week rule. `runs_observed` still increments when the key matches.
 - Examples: filesystem inventory completed, robots.txt available, sitemap available.
 
 ## Inventory keys
@@ -33,7 +33,7 @@ Do not treat inventory / pass confirmations as unresolved problems:
 | `plugins[]` | `slug` → `wp_cli_slug` → `name` |
 | `themes[]` | `slug` → `name` |
 
-Stamp `weeks_observed` / `unresolved_risk` on a plugin or theme row only when it is a problem (`update` is `available` or `update_version` is non-empty). Healthy `update: "none"` rows still appear in `diff.plugins` / `diff.themes` as `unchanged` / `added` / `removed` / `updated` but do not accumulate unresolved risk.
+Stamp `weeks_observed` / `runs_observed` / `unresolved_risk` on a plugin or theme row only when it is a problem (`update` is `available` or `update_version` is non-empty). Healthy `update: "none"` rows still appear in `diff.plugins` / `diff.themes` as `unchanged` / `added` / `removed` / `updated` but do not keep those stamps. A later ingest where the update is back is a new streak (`0` / `0`). Week math is the universal contract, not +1 per run.
 
 ## Do not double-count updates
 
@@ -47,5 +47,5 @@ If top-level `findings[]` also has rollup titles like "Plugin updates appear ava
 
 ## Split / merge examples
 
-- Previous one finding "readme.html and license.txt publicly accessible" → current two ids `wp.security:readme-html` and `wp.security:license-txt`: `split`, inherit `weeks_observed`, then `+1`. Not `resolved`.
+- Previous one finding "readme.html and license.txt publicly accessible" → current two ids `wp.security:readme-html` and `wp.security:license-txt`: `split`, inherit `weeks_observed` then add `elapsed` UTC weeks, inherit `runs_observed` then `+1`. Not `resolved`.
 - Reverse: `merged`.

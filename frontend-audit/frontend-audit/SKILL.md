@@ -103,8 +103,8 @@ Build merged structure for **`findings/frontend-audit.json`** (ingest shape — 
 
 | Partial | Fields merged into `pages[]` |
 | --- | --- |
-| `frontend-browser-console` | `console_error_count`, `console_errors[]` |
-| `frontend-network-health` | `failed_request_count`, `failed_requests[]`, `broken_image_count`, `broken_images[]` |
+| `frontend-browser-console` | `console_error_count` (**int**, never `[]`), `console_errors[]` |
+| `frontend-network-health` | `failed_request_count` (**int**, never `[]`), `failed_requests[]`, `broken_image_count` (**int**), `broken_images[]` |
 | `frontend-performance-cwv` | `core_web_vitals` (incl. `tbt_ms` when captured), `performance` |
 | `frontend-third-party-scripts` | `third_party_scripts[]` |
 | `frontend-accessibility-audit` | `accessibility` |
@@ -117,13 +117,14 @@ Also set page-level `url`, `final_url`, `http_status`, `title`, `status`, `block
 - `third_party_issue_pages` — pages where any `third_party_scripts[].status` is not `ok` / `allowed`
 - `accessibility_issue_pages` — pages where `accessibility.issues[]` is non-empty
 - `regression_count` — length of `baseline_comparison.regressions[]` (or `0` when unavailable)
-- `critical_findings`, `high_findings`, `warning_findings`, `red_flags` — from merged `findings[]`
+- `critical_findings`, `high_findings`, `warning_findings`, `red_flags` — from merged `findings[]` (`red_flags` is an **integer** count here)
 
 **Root fields:**
 
 - `findings[]` — union all partial findings; dedupe by `id` when present, else `title` + `page_url`
 - `baseline_comparison` — from `frontend-deploy-regression` partial only; omit when sub-skill blocked/skipped
-- `human_verification[]` — union orchestrator checklist + partial items
+- `human_verification[]` — union orchestrator checklist + partial items as **`{ item, owner?, due? }` objects**. Never a `string[]`.
+- `environment`, `seed_url`, `scope_mode`, `scope_instruction`, `pages_requested`, `pages_audited`, `pages_blocked` — hoist from `target` / `scope` so DIT ingest can copy this file as-is
 - `tooling` — from session bootstrap (`browser_tool` is `chrome-devtools-mcp` or `lighthouse-cli`; plus `browser_tool_available`, `lighthouse_available` only — never Figma)
 - `verdict` — worst partial verdict + red-flag rules. Lab fallback **cannot** be `PASS` (cap at `PARTIAL`; material defects still `FAIL`)
 

@@ -1,6 +1,8 @@
 ---
 name: craft-cms-audit
 slug: craft-cms-audit
+version: 1.1
+updated: 2026-09-21
 description: >-
   Use when performing a read-only Craft CMS health audit for a scoped Support
   run: core vs latest, full plugin inventory with license status, queue/cache/log
@@ -11,6 +13,8 @@ description: >-
 ---
 
 # Craft CMS Audit
+
+_version: 1.1 · updated: 2026-09-21_
 
 Shared Support skill for **any** Craft client/project. Do not store a site URL, Craft path, or credentials in this skill folder.
 
@@ -251,7 +255,7 @@ On rows with an update or expired/missing license, set `recommendation`. Do not 
 
 HTML alone is **not** enough for DIT inventory.
 
-Finding `id` examples: `craft.config:devMode`, `craft.security:exposed-env`, `craft.queue:failed`, `craft.queue:backed-up`, `craft.cache:invalidation`, `craft.license:expired`, `craft.license:missing`, `craft.license:mismatch`, `craft.logs:php-fatal`, `craft.inventory:complete`. Never copy `title` into `id`. Specialist JSON may use severity `warning`; the **parent** maps ingest `warning` → `medium`.
+Finding `id` examples: `craft.config:devMode`, `craft.security:exposed-env`, `craft.queue:failed`, `craft.queue:backed-up`, `craft.cache:invalidation`, `craft.license:expired`, `craft.license:missing`, `craft.license:mismatch`, `craft.logs:php-fatal`, `craft.inventory:complete`. Never copy `title` into `id`. Specialist JSON may use severity `warning`; the **parent** maps ingest `warning` → `medium`. Also set **`detail`** on each finding (same text as `evidence`) so DIT top-level ingest/UI has `detail`.
 
 The Maintenance Orchestrator copies **top-level** `plugins` (including `handle` / `slug` / `license_status`), `craft_version`, `cms` / `cms_type`, `plugin_count`, `pending_updates`, `findings`, and when present `queue_waiting` / `queue_failed`. Nested `queue` / `cache` / `licenses` / `logs` stay in specialist JSON as evidence; DIT inventory uses plugins + findings. Optional nested `system.core` is extra evidence only.
 
@@ -331,6 +335,7 @@ Canonical specialist output (placeholders only). Copy this **shape** — never r
       "category": "craft",
       "title": "Craft CMS inventory completed",
       "evidence": "Core 5.7.5; plugins: 3; pending updates: 1.",
+      "detail": "Core 5.7.5; plugins: 3; pending updates: 1.",
       "recommendation": "No action required.",
       "owner": "Craft CMS Health Audit Agent",
       "follow_up": false,
@@ -343,6 +348,7 @@ Canonical specialist output (placeholders only). Copy this **shape** — never r
       "category": "craft",
       "title": "Craft queue has failed jobs",
       "evidence": "php craft queue/info: waiting 2, failed 1.",
+      "detail": "php craft queue/info: waiting 2, failed 1.",
       "recommendation": "Inspect failed jobs in the control panel; fix the cause before retrying.",
       "owner": "Craft CMS Health Audit Agent",
       "follow_up": true,
@@ -355,6 +361,7 @@ Canonical specialist output (placeholders only). Copy this **shape** — never r
       "category": "craft",
       "title": "Plugin license expired",
       "evidence": "example-expired license_status=expired.",
+      "detail": "example-expired license_status=expired.",
       "recommendation": "Renew the license or remove the plugin if it is unused.",
       "owner": "Craft CMS Health Audit Agent",
       "follow_up": true,
@@ -398,7 +405,7 @@ Write `<task-folder>/reports/craft-cms-audit.html` with:
 
 ## Native work product
 
-After both files exist:
+After both files exist, publish HTML and JSON:
 
 ```bash
 /usr/local/bin/paperclip-publish-artifact \
@@ -406,6 +413,14 @@ After both files exist:
   --file <task-folder>/reports/craft-cms-audit.html \
   --label "Craft CMS audit report" \
   --summary "<one sentence: core version + plugin/update summary>"
+
+/usr/local/bin/paperclip-publish-artifact \
+  --issue <child-paperclip-issue> \
+  --file <task-folder>/findings/craft-cms-audit.json \
+  --label "Craft CMS audit JSON" \
+  --summary "<one sentence: core version + plugin/update summary>"
 ```
+
+Stamp helper HTTPS `url` values onto `findings/craft-cms-audit.json` as `report_url` / `report_json_url` before `done`. The parent copies them to ingest `cms_report_url` / `cms_report_json_url`. HTML is the primary work product; publish JSON once for DIT.
 
 Then `paperclip-update-issue-status --issue <child> --status done` and **stop**. Do not mention Maintenance Orchestrator with `[@Agent](agent://...)`. Do not run `dit-ingest-diff` or `al-push-result`.

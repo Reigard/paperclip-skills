@@ -72,7 +72,7 @@ Map to `info` or `warning` findings when they indicate broken UX (not noisy depr
 - `source`: `chrome-devtools-mcp` (MCP path) or `lighthouse` (lab fallback)
 - `evidence_type`: `browser-smoke`
 
-`summary.console_error_count` — total errors for this page/viewport.
+`summary.console_error_count` — **integer** total errors for this page/viewport (not an array). The merge step copies that number onto `pages[].console_error_count`. Event objects go in `pages[].data.console_errors[]` only.
 
 ### 5) Clean pass
 

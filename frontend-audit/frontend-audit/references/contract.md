@@ -74,9 +74,11 @@ Do **not** include `figma_comparison` — design comparison is out of scope for 
 | `critical_findings` | number | Count |
 | `high_findings` | number | Count |
 | `warning_findings` | number | Count |
-| `red_flags` | number | Count where `red_flag: true` |
+| `red_flags` | number | Count where `red_flag: true`. **Not** the ingest-root `red_flags` field (that one is `string[]`) |
 
 ### pages[] — per-page result
+
+DIT ingest validates **page-level counts as integers** and **event lists as arrays**. Do not put arrays on `*_count` keys.
 
 | Field | Type | Required |
 | --- | --- | --- |
@@ -85,6 +87,9 @@ Do **not** include `figma_comparison` — design comparison is out of scope for 
 | `http_status` | number | yes |
 | `title` | string | no |
 | `viewport_results` | array | yes |
+| `console_error_count` | **number (int)** | yes — `0` if none; never `[]` |
+| `failed_request_count` | **number (int)** | yes — `0` if none; never `[]` |
+| `broken_image_count` | **number (int)** | yes — `0` if none; never `[]` |
 | `console_errors` | array | yes |
 | `failed_requests` | array | yes |
 | `broken_images` | array | yes |
@@ -93,7 +98,11 @@ Do **not** include `figma_comparison` — design comparison is out of scope for 
 | `third_party_scripts` | array | no |
 | `accessibility` | object | no |
 | `screenshots` | object | no |
+| `desktop_screenshot_url` | HTTPS URL or omit | no — DIT screenshot links |
+| `mobile_screenshot_url` | HTTPS URL or omit | no |
 | `status` | string | yes — `audited`, `blocked`, `skipped` |
+
+Set page `*_count` from merged event arrays (or viewport totals). `viewport_results[].console_error_count` stays a **number** as well.
 
 ### viewport_results[]
 
@@ -200,6 +209,8 @@ Do **not** include `figma_mcp_available`.
 
 ### human_verification[]
 
+**Objects only** (DIT 422 if you send bare strings):
+
 ```json
 {
   "item": "string",
@@ -208,7 +219,21 @@ Do **not** include `figma_mcp_available`.
 }
 ```
 
+Never `"human_verification": ["Confirm the cookie banner…"]`. Wrap as `{ "item": "Confirm the cookie banner…" }`.
+
 No Figma or visual design sign-off items — those belong to `agency-visual-qa`.
+
+### DIT ingest flatten
+
+The parent copies this file into ingest `frontend_audit`. DM also reads **flat** keys. Set them on the merged JSON root (in addition to nested `target` / `scope`):
+
+- `environment` ← `target.environment`
+- `seed_url` ← `target.seed_url`
+- `scope_mode` ← `scope.mode`
+- `scope_instruction` ← `scope.instruction`
+- `pages_requested` / `pages_audited` / `pages_blocked` ← `scope.pages_*`
+
+Parent mapping: `support-maintenance-orchestration` → `references/dit-ingest-fields.md`.
 
 ---
 

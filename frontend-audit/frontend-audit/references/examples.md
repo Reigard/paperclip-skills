@@ -41,6 +41,9 @@
       "http_status": 200,
       "title": "Paperclip Test Site",
       "status": "audited",
+      "console_error_count": 0,
+      "failed_request_count": 0,
+      "broken_image_count": 0,
       "viewport_results": [
         {
           "viewport": "1440x1100",
@@ -173,6 +176,9 @@
       "http_status": 200,
       "title": "Home",
       "status": "audited",
+      "console_error_count": 1,
+      "failed_request_count": 0,
+      "broken_image_count": 0,
       "console_errors": [
         {
           "level": "error",
@@ -206,6 +212,9 @@
       "http_status": 200,
       "title": "About",
       "status": "audited",
+      "console_error_count": 1,
+      "failed_request_count": 1,
+      "broken_image_count": 0,
       "console_errors": [
         {
           "level": "error",

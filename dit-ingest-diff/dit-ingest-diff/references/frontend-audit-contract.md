@@ -35,7 +35,7 @@ Reuse the same `id` across weekly runs. Do not put LCP milliseconds or scores in
 
 Use the page URL: `url`, else `final_url`. Normalize (trim, strip trailing slash except `/`, lowercase host).
 
-Page `change`: `added` / `removed` / `still`. For `still`, add `note` only when HTTP status, block reason, or lab/MCP tooling flipped in a way that would look like a new finding.
+Page `change`: `added` / `removed` / `still`. For `still`, add `note` only when HTTP status, block reason, or lab/MCP tooling flipped in a way that would look like a new finding. Do not stamp `weeks_observed`, `runs_observed`, or `unresolved_risk` on page rows. Stamp frontend findings with the universal week math.
 
 Optional page `previous` / `current` snapshot fields: `http_status`, `console_error_count`, `failed_request_count`, LCP from `core_web_vitals.lcp_ms` when present.
 
@@ -55,8 +55,8 @@ Do **not** treat a metric as `resolved` or `new` solely because one run used Lig
         "key": "front.lcp:homepage",
         "kind": "frontend_finding",
         "change": "still",
-        "previous": { "severity": "high", "weeks_observed": 1, "unresolved_risk": "high" },
-        "current": { "severity": "high", "weeks_observed": 2, "unresolved_risk": "high" }
+        "previous": { "severity": "high", "weeks_observed": 1, "runs_observed": 3, "unresolved_risk": "high" },
+        "current": { "severity": "high", "weeks_observed": 2, "runs_observed": 4, "unresolved_risk": "high" }
       }
     ],
     "pages": [

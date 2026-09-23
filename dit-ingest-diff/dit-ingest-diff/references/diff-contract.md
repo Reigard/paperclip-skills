@@ -96,24 +96,47 @@ If update-available and license-problem both flip on the same row, prefer `updat
 
 ## Entity stamps (on current ingest rows)
 
-Write these on the **current** finding (and `frontend_audit` findings). Write them on plugin/theme rows only when the row is a problem (`update` available / `update-new` / license problem / `still` with update or expired license). Write them on Craft `queue` / failing `smoke_test` status rows when those objects are a problem (see `craft-contract.md`). Do not stamp `cache` / `licenses` / `logs` objects.
+Write `weeks_observed`, `runs_observed`, and `unresolved_risk` on the same rows, using the same week math in every collection below. Do not limit the streak to `findings[]`.
+
+| Collection | Stamp when |
+| ---------- | ---------- |
+| `findings[]` | The key is on the current array |
+| `frontend_audit.findings[]` | The key is on the current array |
+| `plugins[]` / `themes[]` | The row is still a problem (`update` available / `update-new` / license problem / `still` with update or expired license) |
+| `queue` | The status row is still a problem (see `craft-contract.md`) |
+| `smoke_test` | The status row is still failing (see `craft-contract.md`) |
+
+Do not stamp `cache`, `licenses`, `logs`, or `frontend_audit.pages[]`. Per-plugin license problems stay on `plugins[]`.
+
+Never copy a previous key onto the current collection. Resolved findings, removed inventory rows, and rows that are no longer a problem stay out of the stamp. `diff` may show `previous.weeks_observed` / `previous.runs_observed` only. If that key is emitted again on a later ingest, both counters start at `0`.
+
+### Elapsed weeks
+
+Use each ingest's `last_run_at`, else `timestamp`. Interpret both as UTC. A week starts Monday 00:00 UTC.
+
+`weekIndex` is the UTC Monday of that instant, as a continuous index (do not subtract week-of-year numbers; week 1 minus week 52 is wrong). `elapsed = weekIndex(current) - weekIndex(previous)`. If that is negative, use `0`.
+
+One `elapsed` for the whole ingest. Apply it to every matched key in every stamped collection.
 
 ### `weeks_observed` (integer ≥ 0)
 
-```
-if previous.weeks_observed is a number
-  current.weeks_observed = previous.weeks_observed + 1
-else
-  current.weeks_observed = 0
-```
+Whole UTC weeks since this key was first stamped. A missing ingest week still counts. A rerun in the same UTC week does not.
 
 - No previous match → `0`.
-- Previous match but field missing → `0`.
-- Missed a weekly cycle (no match last ingest) → reset to `0`, do not continue a lifetime count.
-- Increment is **+1 per previous ingest of the same `check_type`**, not calendar-week math.
-- Split: children inherit the parent's `weeks_observed`, then apply `+1`.
+- Previous match but `weeks_observed` missing → treat the previous value as `0`, then add `elapsed`.
+- `elapsed === 0` (same UTC week, including several runs the same day) → copy `previous.weeks_observed` when it is a number, otherwise `0`. Do not add 1.
+- `elapsed >= 1` → `previous.weeks_observed + elapsed`. Two missing weeks between ingests add `2`, not `1`.
+- Split: each child inherits the parent's `weeks_observed`, then add `elapsed` (not `+1` per run).
+- Merge: `max(...)` of related previous values, then add `elapsed`.
+
+### `runs_observed` (integer ≥ 0)
+
+How many later ingests have still stamped this key. This is the old per-ingest counter. DIT Monitoring does not render it; it must still be on the entity and on `diff` snapshots.
+
+- No previous match → `0`.
+- Previous match → `(previous.runs_observed if it is a number, else 0) + 1`, even when `elapsed === 0`.
+- Split: each child inherits the parent's `runs_observed` (or `0`), then `+1`.
 - Merge: `max(...)` of related previous values, then `+1`.
-- Resolved items are not on the current array; do not increment. `diff` may show `previous.weeks_observed` only.
 
 ### `unresolved_risk`
 
@@ -137,6 +160,10 @@ Otherwise use this table (`warning` on `frontend_audit.findings` counts as `medi
 | critical | high | critical | critical | critical |
 
 For plugin/theme problem rows without `severity`, treat as `medium`. Same for a problem `queue` or failing `smoke_test` status row.
+
+When `elapsed === 0` and the previous stamp has `unresolved_risk`, copy that value. Do not recompute the table because severity wording changed on a same-week rerun. Still force `none` when the current row is `follow_up: false`, severity `info`, or a skipped status.
+
+When the key is new, or `elapsed >= 1`, compute `unresolved_risk` from the table above using the new `weeks_observed`.
 
 Compute deterministically. Free-text explanation belongs in `diff[].note`, not in `unresolved_risk`.
 
@@ -172,12 +199,14 @@ Append at the **end** of the business object (before `_al` if present):
           "title": "…",
           "severity": "medium",
           "weeks_observed": 2,
+          "runs_observed": 5,
           "unresolved_risk": "medium"
         },
         "current": {
           "title": "…",
           "severity": "medium",
           "weeks_observed": 3,
+          "runs_observed": 6,
           "unresolved_risk": "medium"
         },
         "note": "Same path; title wording changed."

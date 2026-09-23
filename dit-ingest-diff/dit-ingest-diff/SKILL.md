@@ -3,8 +3,8 @@ name: dit-ingest-diff
 description: >-
   Diff two DIT Monitoring ingest snapshots (findings, plugins, themes,
   frontend_audit, and Craft status objects queue/cache/licenses/logs/smoke_test)
-  and write top-level `diff` plus weeks_observed / unresolved_risk before
-  al-push-result. Use after ingest mapping, never on arbitrary specialist
+  and write top-level `diff` plus weeks_observed / runs_observed / unresolved_risk
+  before al-push-result. Use after ingest mapping, never on arbitrary specialist
   findings arrays.
 owner: support
 authors:
@@ -12,9 +12,9 @@ authors:
 maintainers:
   - Alex Dehtiarov
 status: active
-version: 0.2.0
-last_reviewed: 2026-09-09
-last_meaningful_update: 2026-09-09
+version: 0.3.0
+last_reviewed: 2026-09-22
+last_meaningful_update: 2026-09-22
 categories:
   - support
   - maintenance
@@ -52,7 +52,7 @@ Frontend keys: `references/frontend-audit-contract.md`.
 Last step on the **mapped DIT ingest JSON**:
 
 1. Orchestrator built ingest (`support-maintenance-orchestration` → `references/report-contract.md` → DIT Monitoring ingest mapping).
-2. Run **this skill** (write `diff` and stamp `weeks_observed` / `unresolved_risk` on entities).
+2. Run **this skill** (write `diff` and stamp `weeks_observed` / `runs_observed` / `unresolved_risk` on entities).
 3. Then **`al-push-result`** if the routine delivers via Access Layer.
 
 If there is **no** AL path, still write `diff` on the result when previous ingest exists.
@@ -100,7 +100,7 @@ Never take previous from specialist child JSON (`findings/wordpress-basic.json`,
 
 ## Output
 
-1. Stamp `weeks_observed` and `unresolved_risk` on matched current entities (see `references/diff-contract.md`).
+1. Stamp `weeks_observed`, `runs_observed`, and `unresolved_risk` on matched current entities (see `references/diff-contract.md`). Same week math for every stamped collection, not only `findings[]`.
 2. Append top-level **`diff` at the end** of the business object (after collections; before `_al` if `_al` is already present).
 3. Do **not** mutate `_sync`. Do **not** build or edit `_al` (that is `al-push-result`).
 
@@ -110,6 +110,8 @@ Omit empty `diff` collections. If no previous or the gate failed, leave `diff` a
 
 - Match on canonical keys, never on `title` alone.
 - Split / merge use `related_keys` and `change: split` \| `merged`. Those items are never `resolved`.
-- `weeks_observed` increments from the previous ingest of the same `check_type`, not from calendar weeks. A gap (no match last run) resets to `0`.
-- `unresolved_risk` is a table of severity × `weeks_observed`. It is not `severity`.
+- `weeks_observed` is whole UTC weeks since the matched key was first stamped, including weeks with no ingest. A rerun in the same UTC week does not change it or `unresolved_risk`.
+- `runs_observed` increments by 1 on every later ingest where that key is still stamped, including same-day reruns. It is stored on the entity and in `diff` snapshots. Do not expect DIT Monitoring to render it.
+- Do not copy a resolved, removed, or no-longer-problem key back onto the current collection. The next ingest must not contain it unless the specialist emitted it again; that reappearance starts both counters at `0`.
+- `unresolved_risk` is a table of severity × `weeks_observed`. It is not `severity`. Recompute it only when `weeks_observed` changes or the row is first stamped.
 - AL push is independent of `diff`.

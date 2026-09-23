@@ -286,6 +286,7 @@ Required shape:
       "category": "wordpress",
       "title": "<short human title — not copied into id>",
       "evidence": "<what you found>",
+      "detail": "<same text as evidence — DIT top-level ingest/UI reads detail>",
       "recommendation": "<what to do>",
       "owner": "dev | client | agency",
       "follow_up": true,
@@ -297,10 +298,11 @@ Required shape:
 
 **Inventory arrays (mandatory when collected):**
 
-- `plugins` — **every** installed plugin (including must-use when collected). Not updates-only. Prefer DIT field names: `name`, `version`, `status`, `update`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`.
+- `plugins` — **every** installed plugin (including must-use when collected). Not updates-only. Prefer DIT field names: `name`, `version`, `status`, `update`, `update_version`, `auto_update`, `vulnerability_status`, `last_update_check`. **`update` is a string** (`"none"` or `"available"`), never boolean `false`.
 - `themes` — **every** installed theme. Not updates-only; do not omit because `theme_updates` is empty.
 - `plugin_count` = `plugins.length`; `pending_updates` = count of plugins with an available update.
 - If the runner also wrote `support-maintenance-inventory.json`, **copy** `wordpress.plugins` / `wordpress.themes` into these top-level keys (map aliases to ingest names). Do not leave inventory only in that file.
+- Each finding: set **`detail`** to the same text as `evidence` (DIT reads `detail` on top-level ingest). Parent maps specialist `warning` → ingest `medium`. Types: `support-maintenance-orchestration` → `references/dit-ingest-fields.md`.
 
 Severity guide for findings entries:
 - `critical` — duplicate plugins detected, or a core update that is a security release
@@ -461,7 +463,7 @@ Cron backlog:               OK / WARNING / HIGH
 
 ### 7) Publish and close
 
-After writing both files, publish the HTML report using the publish helper:
+After writing both files, publish **HTML and JSON** as openable HTTPS artifacts:
 
 ```bash
 /usr/local/bin/paperclip-publish-artifact \
@@ -469,17 +471,27 @@ After writing both files, publish the HTML report using the publish helper:
   --file <task-folder>/reports/<check>.html \
   --label "WordPress Health Audit" \
   --summary "<one-line summary: e.g. '21 plugins, 3 updates pending, 2 inactive plugins'>"
+
+/usr/local/bin/paperclip-publish-artifact \
+  --issue <child-issue> \
+  --file <task-folder>/findings/<check>.json \
+  --label "WordPress Health Audit JSON" \
+  --summary "<same one-line summary>"
 ```
 
-Do NOT use `paperclip-work-product` with a `file://` URL — use `paperclip-publish-artifact` so the report is accessible as an openable HTTPS link.
+Do NOT use `paperclip-work-product` with a `file://` URL — use `paperclip-publish-artifact` so the reports are accessible as openable HTTPS links.
 
-After the publish helper returns `ok: true`, mark the child issue done:
+Copy the helper HTTPS `url` values into `findings/<check>.json` as `report_url` (HTML) and `report_json_url` (JSON) **before** marking the child done. The parent copies those into ingest `cms_report_url` / `cms_report_json_url` for the DIT inventory buttons. Do not use parent rollup URLs.
+
+HTML is the primary specialist work product. The JSON artifact is required for the DIT **Inventory JSON** button. Do not publish a second copy of the same HTML path.
+
+After both publishes return `ok: true` and the findings JSON has both URLs, mark the child issue done:
 
 ```bash
 paperclip-update-issue-status --issue <child-issue> --status done
 ```
 
-The child is not complete until both the published work product and the `done` status exist. A comment alone is not sufficient.
+The child is not complete until both the published work products and the `done` status exist. A comment alone is not sufficient.
 
 ### 8) Slack notification (conditional)
 
@@ -559,16 +571,18 @@ Supported parameters:
 - `--notify-slack <true|false>` — send Slack notification after audit (default: `true` for production, `false` for development)
 - `--slack-channel <#channel>` — override default channel (default: `#maintenance`)
 
-When triggered by a Routine, the Maintenance Orchestrator creates the parent issue and child. The WordPress Agent runs this skill as the child task. On completion, Slack notification fires before the child is marked `done`.
+When triggered by a Routine, the Maintenance Orchestrator creates the parent issue and child. The WordPress Health Audit Agent runs this skill as the child task. On completion, Slack notification fires before the child is marked `done`.
 
 ## Output contract
 
 ```txt
 <task-folder>/reports/<check>.html     ← rich HTML report (published via paperclip-publish-artifact)
-<task-folder>/findings/<check>.json    ← object with findings[] + full plugins[] + themes[] (DIT-shaped)
+<task-folder>/findings/<check>.json    ← object with findings[] + full plugins[] + themes[] (DIT-shaped) + report_url / report_json_url after publish
 ```
 
 HTML must include **Installed plugins**, **Installed themes**, and a separate **Updates pending** section when updates exist — not updates-only.
+
+After publish, specialist JSON **must** include HTTPS `report_url` and `report_json_url` so the parent can set ingest `cms_report_url` / `cms_report_json_url`. HTML/JSON files on disk without those URLs leave the DIT inventory panel without report buttons.
 
 Do not treat `support-maintenance-inventory.json` as a substitute for top-level `plugins` / `themes` in `findings/<check>.json`.
 

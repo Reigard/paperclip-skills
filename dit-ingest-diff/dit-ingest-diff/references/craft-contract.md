@@ -54,12 +54,12 @@ Snapshot `previous` / `current` on plugin rows: `name`, `version`, `update`, `up
 
 ### Updates vs licenses
 
-Stamp `weeks_observed` / `unresolved_risk` on a plugin row when it is a **problem**:
+Stamp `weeks_observed` / `runs_observed` / `unresolved_risk` on a plugin row when it is a **problem**:
 
 - `update` is `available` or `update_version` is non-empty, **or**
 - `license_status` is `expired` or `missing`
 
-Healthy `update: "none"` + `license_status: valid|trial|unknown` rows still appear in `diff.plugins` as `unchanged` / `added` / `removed` / `updated` but do not accumulate unresolved risk. Treat problem rows without finding `severity` as `medium`.
+Healthy `update: "none"` + `license_status: valid|trial|unknown` rows still appear in `diff.plugins` as `unchanged` / `added` / `removed` / `updated` but do not keep `weeks_observed`, `runs_observed`, or `unresolved_risk`. Week math is the universal contract, not +1 per run. Treat problem rows without finding `severity` as `medium`.
 
 Assign **one** `change` per row, in this order:
 
@@ -115,7 +115,7 @@ Snapshot fields (only those that exist; no secrets):
 - `logs`: `sampled_files` as `title` (comma-separated names only)
 - `smoke_test`: `availability`, `skipped`, `console_errors` (put a short summary in `title`)
 
-Stamp `weeks_observed` / `unresolved_risk` on a status row **only** when it is a problem:
+Stamp `weeks_observed` / `runs_observed` / `unresolved_risk` on a status row **only** when it is a problem:
 
 - `queue`: `failed > 0` (or previous failed > 0 on `removed`)
 - `smoke_test`: `skipped !== true` and `availability` is a fail/down value
@@ -129,4 +129,4 @@ Treat stamped status rows without severity as `medium`. `weeks_observed === 0` o
 
 ## Split / merge
 
-Rare for Craft. Example: previous one finding “queue failed and backed up” → current `craft.queue:failed` and `craft.queue:backed-up`: `split`, inherit `weeks_observed`, then `+1`. Not `resolved`.
+Rare for Craft. Example: previous one finding “queue failed and backed up” → current `craft.queue:failed` and `craft.queue:backed-up`: `split`, inherit `weeks_observed` then add `elapsed` UTC weeks, inherit `runs_observed` then `+1`. Not `resolved`.

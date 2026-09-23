@@ -73,7 +73,7 @@ Merge with failed `image` requests from step 1 (dedupe by URL).
 
 Findings for critical document/script 404 on important pages → `high`. Secondary asset 404 → `warning`. Each finding needs stable `id` (`front.network:failed-request`), `scope: front`, `recommendation`, and `follow_up: true` for real failures. Clean pass (`No failed network requests`) uses `follow_up: false`.
 
-`summary.failed_request_count`, `summary.broken_image_count`.
+`summary.failed_request_count`, `summary.broken_image_count` — **integers** (not arrays). The merge step copies them onto `pages[].failed_request_count` / `broken_image_count`. Event objects stay in `pages[].data.failed_requests[]` / `broken_images[]`.
 
 ## Do not
 
