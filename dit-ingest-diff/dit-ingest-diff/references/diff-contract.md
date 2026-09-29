@@ -182,8 +182,18 @@ Append at the **end** of the business object (before `_al` if present):
 {
   "diff": {
     "against": {
-      "run_id": "<previous run_id>",
-      "last_run_at": "<previous last_run_at or timestamp>"
+      "run_id": "<immediate previous run_id>",
+      "last_run_at": "<immediate previous last_run_at or timestamp>"
+    },
+    "baselines": {
+      "frontend_audit": {
+        "run_id": "<latest earlier ingest that contained frontend_audit>",
+        "last_run_at": "<that ingest last_run_at or timestamp>"
+      },
+      "seo": {
+        "run_id": "<latest earlier ingest that contained seo>",
+        "last_run_at": "<that ingest last_run_at or timestamp>"
+      }
     },
     "summary": {
       "findings": { "new": 0, "still": 0, "resolved": 0, "split": 0, "merged": 0 },
@@ -241,7 +251,10 @@ Append at the **end** of the business object (before `_al` if present):
 
 Rules:
 
-- Omit a collection key when that collection was not on current **and** not on previous (nothing to compare).
+- `against` is the immediate previous ingest (same project, same `check_type`).
+- `baselines` names an older ingest per collection when that collection was absent from `against`. Keys: `findings`, `plugins`, `themes`, `frontend_audit`, `seo`, `queue`, `cache`, `licenses`, `logs`, `smoke_test`. Omit a key when that baseline is `against`. Omit `baselines` entirely when every collection uses `against`.
+- Match and stamp each collection from its baseline, not from a neighbor that skipped the check.
+- Omit a collection key when that collection was not on current **and** not on its baseline (nothing to compare). Do not emit `resolved` rows for a check the current run did not include.
 - Omit empty arrays.
 - Omit `summary` sub-objects for omitted collections.
 - `note` is optional. Use it for split/merge, title rewrite of the same key, lab-vs-MCP caveat, or a secondary license flip on an `update-new` row. One short sentence. No secrets, no license keys.

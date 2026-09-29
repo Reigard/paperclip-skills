@@ -12,9 +12,9 @@ authors:
 maintainers:
   - Alex Dehtiarov
 status: active
-version: 0.3.0
-last_reviewed: 2026-09-22
-last_meaningful_update: 2026-09-22
+version: 0.4.0
+last_reviewed: 2026-09-29
+last_meaningful_update: 2026-09-29
 categories:
   - support
   - maintenance
@@ -92,13 +92,27 @@ Diff **only collections that exist** on the current object (or existed on previo
 
 ## Previous ingest
 
-Same contract as current. Lookup order:
+Same contract as current. Lookup order for the header baseline (`diff.against`):
 
 1. Caller passed a previous ingest object.
 2. Last ingest for the same project (`_sync.dit_monitoring_project_id` or `client` + `site`) **and** the same `check_type`, from a prior task-folder copy or saved `payload.processed`.
 3. No previous → **do not** write `diff`. Do not block the run.
 
 Never take previous from specialist child JSON (`findings/wordpress-basic.json`, `findings/craft-cms-audit.json`, `findings/frontend-audit.json`, `findings/seo-baseline.json`) or from AL `deliveries[]`.
+
+### Collection baselines
+
+`diff.against` is only the immediate previous ingest. Each collection is matched against the latest earlier ingest of the same project and `check_type` that **contains that collection**. Walk back past runs that omitted it.
+
+Examples: a front-only run after an SEO-only run compares `frontend_audit` to the last ingest that had `frontend_audit`, not to the SEO run. `seo` compares to the last ingest that had `seo`. Same for `plugins`, `themes`, and Craft status objects.
+
+Write that ingest on `diff.baselines.<collection>` (`run_id`, `last_run_at`) **only when it is not** `diff.against`. Omit the key when they are the same run. DIT Monitoring prints **Compared with** on that collection from this object.
+
+Match rows and stamp `weeks_observed` / `runs_observed` / `unresolved_risk` from the collection baseline. A key missing only because an intervening run skipped the check is not `new` and does not reset the counters.
+
+Do not emit `resolved` for a collection the current run did not include.
+
+Top-level `findings[]`: include a row only when its `scope` collection exists on **both** the current ingest and the findings baseline. `front` requires `frontend_audit`. `seo` requires `seo`. `cms` requires CMS inventory or a Craft status object (`plugins`, `themes`, `queue`, `cache`, `licenses`, `logs`, or `smoke_test`). `other` stays on the findings baseline. Do not mark a scoped row `resolved` when that check did not run.
 
 ## Output
 
