@@ -74,7 +74,7 @@ Example shape (multi-line is expected):
 *Action needed:* Schedule plugin + core updates
 ```
 
-Omit CMS or front sections that were **not** in `selected_checks` for this run.
+Omit CMS, front, or SEO sections that were **not** in `selected_checks` for this run.
 
 **Fallback** (no `slack-summary.txt`): 1–2 lines, then up to three finding titles.
 

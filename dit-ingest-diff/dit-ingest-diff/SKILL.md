@@ -2,7 +2,7 @@
 name: dit-ingest-diff
 description: >-
   Diff two DIT Monitoring ingest snapshots (findings, plugins, themes,
-  frontend_audit, and Craft status objects queue/cache/licenses/logs/smoke_test)
+  frontend_audit, seo, and Craft status objects queue/cache/licenses/logs/smoke_test)
   and write top-level `diff` plus weeks_observed / runs_observed / unresolved_risk
   before al-push-result. Use after ingest mapping, never on arbitrary specialist
   findings arrays.
@@ -36,6 +36,7 @@ Works for these collections when they are present:
 - `plugins[]`
 - `themes[]`
 - `frontend_audit` (object; arrays inside it are `findings[]` and, per the front contract, `pages[]`)
+- `seo` (object; arrays inside it are `findings[]` and `urls[]`; see SEO contract)
 - Craft status objects: `queue`, `cache`, `licenses`, `logs`, `smoke_test` (one-row `diff` arrays; see Craft contract)
 
 Known specialist shapes (WordPress, Craft, frontend-audit) have tighter key rules in `references/`. A future agent under the same parent that also emits `findings[]` is **out of scope** unless that object passes the ingest gate below.
@@ -45,7 +46,8 @@ This skill does **not** replace `frontend-deploy-regression` (page baseline insi
 Full algorithm and JSON: `references/diff-contract.md`.  
 WordPress keys: `references/wordpress-contract.md`.  
 Craft keys and status objects: `references/craft-contract.md`.  
-Frontend keys: `references/frontend-audit-contract.md`.
+Frontend keys: `references/frontend-audit-contract.md`.  
+SEO keys: `references/seo-contract.md`.
 
 ## When to use
 
@@ -67,7 +69,7 @@ Missing `diff` must **never** block Access Layer push. `al-push-result` sets `_a
 | ----- | ---- |
 | **Maintenance Orchestrator** | Owns the skill. Wake 3: mapping → `dit-ingest-diff` → `al-push-result`. |
 | **AL Gateway** | Does **not** attach this skill. Collects ingest from the task folder; pushes with or without `diff`. |
-| **WordPress / Craft / Frontend children** | Do **not** run this skill. They only emit stable ids / handles / slugs so ingest match works. |
+| **WordPress / Craft / Frontend / SEO children** | Do **not** run this skill. They only emit stable ids / handles / slugs so ingest match works. |
 
 ## Input identity (gate)
 
@@ -81,12 +83,12 @@ Proceed only when **all** of the following hold:
    - `run_id` (UUID) **and** `check_type`;
    - `_sync.dit_monitoring_project_id` (or `_sync.dit_monitoring_id`);
    - `site` **and** ingest `verdict` in `pass` \| `warn` \| `fail` \| `unknown`.
-2. At least one known collection: array `findings`, array `plugins`, array `themes`, object `frontend_audit`, or a Craft status object (`queue`, `cache`, `licenses`, `logs`, `smoke_test`).
+2. At least one known collection: array `findings`, array `plugins`, array `themes`, object `frontend_audit`, object `seo`, or a Craft status object (`queue`, `cache`, `licenses`, `logs`, `smoke_test`).
 3. Not a reject shape: `dashboard-summary.json`, compact rollup stub, or a foreign specialist JSON that only happens to contain `findings[]`.
 
 If the gate fails → **no-op**. Do not write `diff`. Do not invent collections. Continue the run.
 
-Diff **only collections that exist** on the current object (or existed on previous, for `removed`). No `plugins` → do not emit `diff.plugins`. No `themes` → do not emit `diff.themes` (Craft must not invent themes). No `frontend_audit` → do not invent front rows. No `queue` on either side → do not emit `diff.queue`.
+Diff **only collections that exist** on the current object (or existed on previous, for `removed`). No `plugins` → do not emit `diff.plugins`. No `themes` → do not emit `diff.themes` (Craft must not invent themes). No `frontend_audit` → do not invent front rows. No `seo` → do not emit `diff.seo`. No `queue` on either side → do not emit `diff.queue`.
 
 ## Previous ingest
 
@@ -96,7 +98,7 @@ Same contract as current. Lookup order:
 2. Last ingest for the same project (`_sync.dit_monitoring_project_id` or `client` + `site`) **and** the same `check_type`, from a prior task-folder copy or saved `payload.processed`.
 3. No previous → **do not** write `diff`. Do not block the run.
 
-Never take previous from specialist child JSON (`findings/wordpress-basic.json`, `findings/craft-cms-audit.json`, `findings/frontend-audit.json`) or from AL `deliveries[]`.
+Never take previous from specialist child JSON (`findings/wordpress-basic.json`, `findings/craft-cms-audit.json`, `findings/frontend-audit.json`, `findings/seo-baseline.json`) or from AL `deliveries[]`.
 
 ## Output
 

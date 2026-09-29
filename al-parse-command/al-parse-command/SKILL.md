@@ -97,17 +97,23 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
 
 8. When `input.command` is `audit`, build an **`audit` plan** and include it on the published context. Do **not** invent findings — only map flags to checks and agents.
 
-   Normalize `input.flags` (and `input.scopes` if flags are empty): strip a leading `--`, lowercase, drop blanks. Area flags: `front`, `cms`, `infra`. CMS subtype: the first remaining flag that matches `^[a-z][a-z0-9-]*$` (examples: `wordpress`, `craft`, `ee`). A subtype without `--cms` still implies the CMS area.
+   Normalize `input.flags` (and `input.scopes` if flags are empty): strip a leading `--`, lowercase, drop blanks. Area flags: `front`, `cms`, `seo`. `infra` is not an area (drop it; do not treat it as a CMS subtype). CMS subtype: the first remaining flag that matches `^[a-z][a-z0-9-]*$` (examples: `wordpress`, `craft`, `ee`). A subtype without `--cms` still implies the CMS area. `seo` is its own area, not a CMS subtype.
+
+   Empty flags mean CMS + front + SEO. Any area flag **limits** the run to the named areas (so `--seo` is SEO only). Combine flags the same way (`--front --seo` is those two, not the full set).
 
    | Inbound flags | Areas | CMS subtype | `selected_checks` |
    | --- | --- | --- | --- |
-   | *(none)* — audit **All** | `cms` + `front` | unset (routine/project default) | CMS check + `frontend-audit` |
+   | *(none)* — audit **All** | `cms` + `front` + `seo` | unset (routine/project default) | CMS check + `frontend-audit` + `seo-baseline` |
    | `--front` | `front` | — | `frontend-audit` |
    | `--cms` | `cms` | unset | CMS check only |
+   | `--seo` | `seo` | — | `seo-baseline` |
    | `--cms --wordpress` (or `--wordpress`) | `cms` | `wordpress` | `wordpress-basic` |
    | `--cms --craft` (or `--craft`) | `cms` | `craft` | `craft-cms-audit` |
    | `--front --cms` | `cms` + `front` | unset | CMS check + `frontend-audit` |
-   | `--infra` | `infra` | — | `server-infra-basic` |
+   | `--cms --seo` | `cms` + `seo` | unset | CMS check + `seo-baseline` |
+   | `--front --seo` | `front` + `seo` | — | `frontend-audit` + `seo-baseline` |
+   | `--front --cms --seo` | all three | unset | CMS check + `frontend-audit` + `seo-baseline` |
+   | `--infra` | *(dropped)* | — | Do not add `server-infra-basic`. Comment that this routine does not run infra |
 
    CMS check + agent when the CMS area is on:
 
@@ -141,7 +147,7 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
          "agents": {
            "cms": "WordPress Health Audit Agent",
            "front": null,
-           "infra": null
+           "seo": null
          }
        }
      }
@@ -157,7 +163,7 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
 ## Rules
 
 - Only explain / normalize inbound data; no business findings.
-- For `/audit`, always publish the `audit` plan (areas, subtype, `selected_checks`, agents). Empty flags mean CMS + front, not “do nothing”.
+- For `/audit`, always publish the `audit` plan (areas, subtype, `selected_checks`, agents). Empty flags mean CMS + front + SEO, not “do nothing”. `--seo` alone is `seo-baseline` only. SEO agent: **SEO Baseline Agent**.
 - Never drop or rewrite `_al.request_id` / `_al.gateway_request_id` / `_al.push_url`.
 - Do not touch `_sync` or other non-`_al` result fields.
 - If JSON parse fails: still produce an error context so **al-push-result** can push `{ "_al": … }`.

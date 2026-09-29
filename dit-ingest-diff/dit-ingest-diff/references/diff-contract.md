@@ -15,6 +15,8 @@ If the object has `body.result` or `requestBody.result` and that nested object h
 | `themes` | array of inventory rows | yes |
 | `frontend_audit.findings` | array of findings | yes, when `frontend_audit` is an object |
 | `frontend_audit.pages` | array of pages | yes, when using the frontend-audit contract |
+| `seo.findings` | array of findings | yes, when `seo` is an object |
+| `seo.urls` | array of URLs | yes, when using the SEO contract |
 | `queue` | status object | yes, when using the Craft contract (one-row `diff.queue`) |
 | `cache` | status object | yes, Craft contract |
 | `licenses` | status object | yes, Craft contract (collection hygiene; per-plugin licenses live on `plugins[]`) |
@@ -29,7 +31,7 @@ Normalize keys: trim, lowercase. Empty key → skip the item (do not invent a ti
 
 ### Findings (`findings[]` and `frontend_audit.findings[]`)
 
-1. Prefer stable `id` when it is **not** a copy of `title` (examples: `wp.security:readme-html`, `craft.queue:failed`, `front.lcp:homepage`).
+1. Prefer stable `id` when it is **not** a copy of `title` (examples: `wp.security:readme-html`, `craft.queue:failed`, `front.lcp:homepage`, `seo.index:robots-block`).
 2. Else compose `scope` + `category` + a non-title entity token from `id` / path / check slug when one exists.
 3. **Never** use normalized `title` as the only key.
 
@@ -50,6 +52,10 @@ Single synthetic key equal to the collection name (`queue`, `cache`, …). See `
 ### Frontend pages
 
 Canonical page URL (`url` or `final_url`). See `frontend-audit-contract.md`.
+
+### SEO findings and URLs
+
+Stable `seo.*` id. URL key is `urls[].url`. See `seo-contract.md`. Do not match these rows against `frontend_audit` ids.
 
 ## Change values
 
@@ -102,11 +108,12 @@ Write `weeks_observed`, `runs_observed`, and `unresolved_risk` on the same rows,
 | ---------- | ---------- |
 | `findings[]` | The key is on the current array |
 | `frontend_audit.findings[]` | The key is on the current array |
+| `seo.findings[]` | The key is on the current array. Specialist `warning` counts as `medium` |
 | `plugins[]` / `themes[]` | The row is still a problem (`update` available / `update-new` / license problem / `still` with update or expired license) |
 | `queue` | The status row is still a problem (see `craft-contract.md`) |
 | `smoke_test` | The status row is still failing (see `craft-contract.md`) |
 
-Do not stamp `cache`, `licenses`, `logs`, or `frontend_audit.pages[]`. Per-plugin license problems stay on `plugins[]`.
+Do not stamp `cache`, `licenses`, `logs`, `frontend_audit.pages[]`, or `seo.urls[]`. Per-plugin license problems stay on `plugins[]`. Do not stamp `seo.cwv` scalars.
 
 Never copy a previous key onto the current collection. Resolved findings, removed inventory rows, and rows that are no longer a problem stay out of the stamp. `diff` may show `previous.weeks_observed` / `previous.runs_observed` only. If that key is emitted again on a later ingest, both counters start at `0`.
 
@@ -150,7 +157,7 @@ Force `none` when any of:
 - `follow_up === false`;
 - finding `severity` is `info` (inventory / pass confirmation).
 
-Otherwise use this table (`warning` on `frontend_audit.findings` counts as `medium`):
+Otherwise use this table (`warning` on `frontend_audit.findings` or `seo.findings` counts as `medium`):
 
 | severity \ weeks | 1 | 2–3 | 4–7 | 8+ |
 | ---------------- | - | --- | --- | -- |
@@ -183,6 +190,7 @@ Append at the **end** of the business object (before `_al` if present):
       "plugins": { "added": 0, "removed": 0, "unchanged": 0, "updated": 0, "update-new": 0, "update-resolved": 0, "license-new": 0, "license-resolved": 0 },
       "themes": { "added": 0, "removed": 0, "unchanged": 0, "updated": 0, "update-new": 0, "update-resolved": 0 },
       "frontend_audit": { "new": 0, "still": 0, "resolved": 0 },
+      "seo": { "new": 0, "still": 0, "resolved": 0 },
       "queue": { "added": 0, "removed": 0, "unchanged": 0, "updated": 0 },
       "cache": { "added": 0, "removed": 0, "unchanged": 0, "updated": 0 },
       "licenses": { "added": 0, "removed": 0, "unchanged": 0, "updated": 0 },
@@ -222,6 +230,10 @@ Append at the **end** of the business object (before `_al` if present):
     "frontend_audit": {
       "findings": [],
       "pages": []
+    },
+    "seo": {
+      "findings": [],
+      "urls": []
     }
   }
 }
@@ -233,6 +245,6 @@ Rules:
 - Omit empty arrays.
 - Omit `summary` sub-objects for omitted collections.
 - `note` is optional. Use it for split/merge, title rewrite of the same key, lab-vs-MCP caveat, or a secondary license flip on an `update-new` row. One short sentence. No secrets, no license keys.
-- `kind`: `finding` \| `plugin` \| `theme` \| `frontend_finding` \| `frontend_page` \| `cms_status`.
+- `kind`: `finding` \| `plugin` \| `theme` \| `frontend_finding` \| `frontend_page` \| `seo_finding` \| `seo_url` \| `cms_status`.
 
 Do not write `diff` when previous was not found or the identity gate failed.
