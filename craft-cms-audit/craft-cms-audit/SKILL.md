@@ -45,7 +45,7 @@ Targets Craft CMS 3.x, 4.x, and 5.x. Requires Craft CLI. Playwright smoke requir
 | **Report / Triage Agent** | Review of specialist + draft rollup; does not rewrite Craft JSON |
 | **Access Layer Gateway Orchestrator** | AL bookends only (`al-parse-command` / `al-push-result`). Does **not** attach this skill |
 
-Do **not** attach `al-parse-command`, `al-push-result`, `dit-ingest-diff`, or `paperclip-dit-monitoring` to the Craft specialist. DIT Monitoring is filled by the parent: ingest mapping → **`dit-ingest-diff`** → **`al-push-result`** → Access Layer → DM.
+Do **not** attach `al-parse-command`, `al-push-result`, or `dit-ingest-diff` to the Craft specialist, and do not POST ingest to DIT. DIT Monitoring is filled by the parent: ingest mapping → **`dit-ingest-diff`** → **`al-push-result`** → Access Layer → DM.
 
 ## Inputs required (per run — never from skill `.env`)
 

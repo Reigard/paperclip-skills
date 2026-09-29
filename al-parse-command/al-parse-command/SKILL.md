@@ -11,7 +11,7 @@ Parses the command envelope and exposes context. Does **not** call Access Layer 
 
 ## When to use
 
-Always at the **start** of a run when the issue/routine payload came from Access Layer (fenced JSON with `input` and `_al`).
+Always at the **start** of a run when Access Layer started it. On a **routine** route the envelope is this run’s `triggerPayload` / `payload`: `{ input, meta, _al }`. It is not a fenced JSON block in the issue, and it does not depend on assignee or `originKind`. On a **direct agent** dispatch the same object is a fenced JSON block in the issue description.
 
 **Do not run this skill** when the routine was started inside Paperclip (manual or schedule) with **no** Access Layer envelope. There is nothing to parse; inventing `_al` / `gateway_request_id` would make Access Layer treat the later push as a command Result and dump the payload into Slack DM. Paperclip-native runs skip this skill, do domain work, then **`al-push-result`** with `_al.notify`: `"DIT Monitoring"` and `_al.push_url`: `https://dit-al.designingit.co/api/push/run-summary`.
 
@@ -61,7 +61,7 @@ Prefer **`_al`** for correlation and **`_al.push_url`** for the later push. Keep
 
 ## Steps
 
-1. Find the fenced ` ```json ` block in the issue description (or the routine `payload`).
+1. On a routine run, read `triggerPayload` / `payload` first (`input` + `_al`). On a direct agent issue, read the fenced ` ```json ` block in the description. Do not treat the routine’s stored `selected_checks` document as the AL envelope.
 2. Parse JSON. Require at least `input` (object). Prefer `_al`; if missing, build a working `_al` from `meta` and note that it was recovered.
 3. Do **not** invent new `request_id` / `gateway_request_id`.
 4. Remember `push_url` from `_al` for **al-push-result** (do not strip it).

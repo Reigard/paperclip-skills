@@ -72,6 +72,10 @@ Do not write `findings.json`, `final-report.html`, `slack-summary.txt`, or `arti
 
 `findings/seo-baseline.json` is the object the parent copies onto ingest **`seo`**. Keep findings inside `seo.findings` (stable `seo.*` ids). Do not emit those ids on a top-level `findings[]` array in this file.
 
+Every finding `scope` is exactly `"seo"`. DIT Monitoring accepts only `front`, `cms`, `seo`, or `other` — no other value. If the runner emits `page` or `site`, rewrite that field to `seo` before saving the file. Do not send `page` or `site`.
+
+`urls[]` is required. One object per audited URL, including pages with no findings. Do not leave it empty when the check resolved a list, and do not put that list only inside findings. The HTML report lists the same URLs.
+
 Publish HTML and JSON with `paperclip-publish-artifact`, then copy the HTTPS URLs into `report_url` and `report_json_url` before `done`. HTML is the primary work product. Do not mark `done` if publish failed.
 
 ## Do not

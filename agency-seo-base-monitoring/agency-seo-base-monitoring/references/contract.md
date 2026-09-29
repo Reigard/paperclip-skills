@@ -47,7 +47,7 @@ The parent copies this JSON onto ingest `seo`. It does not merge `findings[]` in
     {
       "id": "seo.index:robots-block",
       "severity": "warning",
-      "scope": "front",
+      "scope": "seo",
       "category": "seo",
       "title": "Production robots.txt blocks indexing",
       "evidence": "Disallow: / on https://example.com/robots.txt",
@@ -68,9 +68,10 @@ The parent copies this JSON onto ingest `seo`. It does not merge `findings[]` in
 | `verdict` | `pass` \| `warn` \| `fail` \| `unknown`. Runner WARN → `warn` |
 | `scope_source` | `seo_scope` \| `site_pages` \| `main_url` |
 | `cwv` | Omit when the run skipped CWV. Numbers stay here, not in `id` or `title` |
-| `urls` | Only URLs this check resolved. Facts, not findings |
+| `urls` | Required. One object per audited URL, including pages with no findings. The HTML report lists the same URLs. Facts, not findings |
 | `findings[].id` | Stable `seo.<area>:<token>`. Never copy `title`. Never use `front.*` |
 | `findings[].severity` | `critical` \| `high` \| `warning` \| `info`. Parent leaves these inside `seo` (`warning` is allowed here) |
+| `findings[].scope` | Exactly `seo` for this check. The only values DIT Monitoring accepts on any finding are `front`, `cms`, `seo`, `other`. Never write `page`, `site`, or any other string. Where the issue applies stays in `urls[]` and `detail` |
 | `detail` | Same text as `evidence` |
 
 `scope_source` values:

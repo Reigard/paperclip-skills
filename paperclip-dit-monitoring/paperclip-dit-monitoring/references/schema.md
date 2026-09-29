@@ -75,7 +75,7 @@ Do not use `file://` paths, filesystem paths, or placeholder domains in the inge
 
 **findings[].severity:** `critical` | `high` | `medium` | `low` | `info`
 
-**findings[] extra fields (checklist):** `id`, `recommendation`, `scope` (`front` \| `cms` \| `other`), `category`, `follow_up`, `red_flag` — pass through from specialist JSON. Required on `follow_up: true` items. Use `other` for infra, access, triage, or anything that is not Front or CMS work.
+**findings[] extra fields (checklist):** `id`, `recommendation`, `scope` (`front` \| `cms` \| `seo` \| `other` only — no other value), `category`, `follow_up`, `red_flag` — pass through from specialist JSON. Required on `follow_up: true` items. Use `seo` for SEO baseline findings. Use `other` for infra, access, triage, or anything that is not Front, CMS, or SEO work.
 
 ## Severity mapping (report-contract → ingest)
 

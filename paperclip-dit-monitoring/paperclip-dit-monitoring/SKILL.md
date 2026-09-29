@@ -220,7 +220,7 @@ Assemble one JSON object with **Paperclip run fields only**, plus technical `_sy
 
 | Ingest field | Primary source | Notes |
 | ------------ | -------------- | ----- |
-| `run_id` | `run.json` → `run_id` | Use as idempotency key; same run retried → same `run_id` |
+| `run_id` | `run.json` → `run_id` | UUID, not a folder slug. Idempotency key; same run retried → same `run_id` |
 | `check_type` | `run.json` → `selected_checks` | See [check_type rules](#check_type-rules) |
 | `client` | DIT Monitoring GET project `name` | Must match project for `DIT_MONITORING_ID` |
 | `site` | DIT Monitoring project URL or run scope | Normalize hostname (see [schema.md](references/schema.md)) |
@@ -484,7 +484,7 @@ Map each ingest finding item:
 {
   "id": "<stable id, e.g. wp.security:readme-html>",
   "severity": "<mapped>",
-  "scope": "cms | front | other",
+  "scope": "front | cms | seo | other",
   "category": "<wordpress | frontend | performance | …>",
   "title": "<stable title, no versions/timings/counts>",
   "detail": "<finding.evidence, truncated>",
