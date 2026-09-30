@@ -11,7 +11,7 @@ Parses the command envelope and exposes context. Does **not** call Access Layer 
 
 ## When to use
 
-Always at the **start** of a run when Access Layer started it. On a **routine** route the envelope is this run’s `triggerPayload` / `payload`: `{ input, meta, _al }`. It is not a fenced JSON block in the issue, and it does not depend on assignee or `originKind`. On a **direct agent** dispatch the same object is a fenced JSON block in the issue description.
+Always at the **start** of a run when Access Layer started it. On a **routine** route the envelope is the routine run’s `triggerPayload`: `{ input, meta, _al }`. `issue.triggerPayload` is always `{}` and is not that object. Load the run by `issue.originRunId` (see Steps). It is not a fenced JSON block in the issue, and it does not depend on assignee or `originKind`. On a **direct agent** dispatch the same object is a fenced JSON block in the issue description.
 
 **Do not run this skill** when the routine was started inside Paperclip (manual or schedule) with **no** Access Layer envelope. There is nothing to parse; inventing `_al` / `gateway_request_id` would make Access Layer treat the later push as a command Result and dump the payload into Slack DM. Paperclip-native runs skip this skill, do domain work, then **`al-push-result`** with `_al.notify`: `"DIT Monitoring"` and `_al.push_url`: `https://dit-al.designingit.co/api/push/run-summary`.
 
@@ -61,7 +61,14 @@ Prefer **`_al`** for correlation and **`_al.push_url`** for the later push. Keep
 
 ## Steps
 
-1. On a routine run, read `triggerPayload` / `payload` first (`input` + `_al`). On a direct agent issue, read the fenced ` ```json ` block in the description. Do not treat the routine’s stored `selected_checks` document as the AL envelope.
+1. On a routine execution issue, do not read `issue.triggerPayload`. That field is always `{}` and is not the Access Layer envelope. Load the routine run:
+   - `issue.originId` is the routine id. `issue.originRunId` is the routine run id.
+   - `GET /api/routines/{issue.originId}`. In `recentRuns`, find the row whose `id` equals `issue.originRunId`.
+   - If that id is not in `recentRuns`, `GET /api/routines/{issue.originId}/runs` and find the same id.
+   - The envelope is that row’s `triggerPayload`: `{ input, meta, _al }`.
+   - Paperclip-native only when that `triggerPayload` has no `input` and no `_al`. Then stop this skill. Do not decide from `issue.triggerPayload`, the issue description, `originKind`, or the assignee.
+   - Do not treat the routine’s stored `selected_checks` document as the AL envelope.
+   On a direct agent issue, read the fenced ` ```json ` block in the description.
 2. Parse JSON. Require at least `input` (object). Prefer `_al`; if missing, build a working `_al` from `meta` and note that it was recovered.
 3. Do **not** invent new `request_id` / `gateway_request_id`.
 4. Remember `push_url` from `_al` for **al-push-result** (do not strip it).
