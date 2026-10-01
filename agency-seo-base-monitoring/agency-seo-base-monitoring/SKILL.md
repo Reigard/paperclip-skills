@@ -10,7 +10,7 @@ description: >-
 
 # Agency SEO base monitoring
 
-_version: 1.1 · updated: 2026-10-01_
+_version: 1.2 · updated: 2026-10-01_
 
 Basic SEO baseline for **SEO Baseline Agent**. Indexability, canonicals, titles, headings, sitemap presence, sitemap URLs blocked by `robots.txt`, broken same-host links on the audited pages, and a light CWV snapshot when the runner includes it. Not a content strategy audit, not a full-site render, and not `frontend-audit`.
 
@@ -36,7 +36,7 @@ If the client, project, or environment is missing, **block** and ask one questio
 
 Resolve **only** the list this check will audit. Do not open `artifacts/frontend-crawl-manifest.json`. Do not copy the browser child's homepage-only `scope` when a wider list exists above it.
 
-1. **SEO scope** on the routine or child: `seo.scope` / `seo.priority_urls` / `seo.limits`. If `seo.scope.rules` includes `site_discovery`, expand the sitemap over HTTP and cap at `seo.limits.max_pages` (default **15**). This is a sample, not every URL on the host.
+1. **SEO scope** on the routine or child: `seo.scope` / `seo.priority_urls` / `seo.limits`. If `seo.scope.rules` includes `site_discovery`, expand the sitemap over HTTP and cap at `seo.limits.max_pages` (default **15**). This is a sample, not every URL on the host. When the audit command sets `--seo-max-pages`, the orchestrator writes that integer into `seo.limits.max_pages`: a positive number is the cap, and **0** means every sitemap URL. If the flag is absent, keep 15.
 2. **Multi-page site scope** on the routine payload (not the single-URL browser block): `scope.priority_urls` or `scope.rules` whose include targets resolve to **more than one** URL.
 3. **Main site URL** — the routine production URL (one page).
 
