@@ -82,6 +82,13 @@ The parent copies this JSON onto ingest `seo`. It does not merge `findings[]` in
 | `site_pages` | Routine multi-page scope (more than one URL), not the browser one-URL block |
 | `main_url` | Routine production URL only |
 
-Finding id examples: `seo.index:robots-block`, `seo.index:noindex`, `seo.canonical:missing`, `seo.sitemap:missing`, `seo.title:missing`, `seo.h1:missing`, `seo.cwv:lcp`, `seo.cwv:cls`, `seo.cwv:inp`, `seo.inventory:complete` (`follow_up: false`).
+Finding id examples: `seo.index:robots-block`, `seo.index:noindex`, `seo.index:sitemap-robots`, `seo.links:broken`, `seo.canonical:missing`, `seo.sitemap:missing`, `seo.title:missing`, `seo.h1:missing`, `seo.cwv:lcp`, `seo.cwv:cls`, `seo.cwv:inp`, `seo.inventory:complete` (`follow_up: false`).
+
+`seo.index:sitemap-robots` and `seo.links:broken` are separate findings. Do not merge them into `seo.index:robots-block` or `seo.index:noindex`.
+
+| Id | When |
+| --- | --- |
+| `seo.index:sitemap-robots` | One finding for the run. A sitemap URL in the audited list is disallowed by `robots.txt` (a more specific `Allow` does not win). `evidence` names each URL and the matching rule. Omit when none match. Sitewide `Disallow: /` stays `seo.index:robots-block`. A `noindex` meta tag stays `seo.index:noindex`. |
+| `seo.links:broken` | One finding for the run. A same-host `<a href>` on an audited HTTP 200 page ends on a non-2xx response, or the host does not respond, after redirects. `evidence` names the source page, target URL, and final status. Do not follow links from the target. Do not include other hosts. Omit when every such link ends on 2xx. |
 
 Do not stamp `weeks_observed`, `runs_observed`, or `unresolved_risk`. **`dit-ingest-diff`** does that on `seo.findings` after mapping.

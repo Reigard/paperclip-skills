@@ -10,9 +10,9 @@ description: >-
 
 # Agency SEO base monitoring
 
-_version: 1.0 · updated: 2026-09-25_
+_version: 1.1 · updated: 2026-10-01_
 
-Basic SEO baseline for **SEO Baseline Agent**. Indexability, canonicals, titles, headings, sitemap presence, and a light CWV snapshot when the runner includes it. Not a content strategy audit, not a full-site render, and not `frontend-audit`.
+Basic SEO baseline for **SEO Baseline Agent**. Indexability, canonicals, titles, headings, sitemap presence, sitemap URLs blocked by `robots.txt`, broken same-host links on the audited pages, and a light CWV snapshot when the runner includes it. Not a content strategy audit, not a full-site render, and not `frontend-audit`.
 
 Canonical JSON shape: [references/contract.md](references/contract.md).
 
@@ -58,6 +58,30 @@ seo-baseline run --client <client_slug>
 
 Pass only the resolved URL list. Do not pass the browser homepage list beside it. Map runner **WARN** to `"verdict": "warn"` and `"status": "completed"`. WARN is review-needed, not a failed run. A runner failure or unreachable host is `status: blocked`, not `warn`.
 
+## Extra checks on the audited list
+
+Run these on the resolved URL list only. Do not widen the sample. Keep each result as its own finding. Do not fold either into `seo.index:robots-block` or `seo.index:noindex`.
+
+### Sitemap URL blocked by robots.txt
+
+When the list came from the sitemap (`scope_source` `seo_scope`), fetch `robots.txt` once for the site host.
+
+For each audited URL that appears in that sitemap, check whether a `Disallow` rule matches its path and no more specific `Allow` wins. If it matches, the URL is in the sitemap and blocked by `robots.txt`.
+
+Emit **one** finding, id `seo.index:sitemap-robots`, `severity` `warning`, `scope` `seo`, `follow_up` `true`. `evidence` and `detail` name each blocked URL and the matching rule. `recommendation`: remove the URL from the sitemap or allow it in `robots.txt`.
+
+Skip this finding when no sitemap URL is disallowed. A missing `robots.txt` is not this finding. A sitewide `Disallow: /` stays `seo.index:robots-block`. A page with a `noindex` robots meta tag stays `seo.index:noindex`.
+
+### Broken same-host links on audited pages
+
+On each audited HTML page that returned 200, read same-host `<a href>` values. Resolve relative URLs against that page. Ignore `mailto:`, `tel:`, `javascript:`, and links that are only a fragment.
+
+Request each unique target once. Follow redirects. Do not fetch links from the target page.
+
+A link is broken when the final status is not 2xx, or the host does not respond. A redirect that ends on 2xx is not broken. External hosts are out of scope.
+
+Emit **one** finding when at least one link is broken, id `seo.links:broken`, `severity` `warning`, `scope` `seo`, `follow_up` `true`. `evidence` and `detail` list source page, target URL, and final status. `recommendation`: fix or remove the link on the source page.
+
 ## Outputs
 
 Write only:
@@ -81,6 +105,7 @@ Publish HTML and JSON with `paperclip-publish-artifact`, then copy the HTTPS URL
 ## Do not
 
 - Treat this as a deep crawl, link-equity study, or content audit
+- Follow links past the audited pages, or check links on other hosts (`seo.links:broken` is one hop, same host, on the sample only)
 - Follow the front child's `max_pages: 1` homepage rule when SEO scope or a multi-page list exists
 - Reuse `front.*` finding ids (`front.seo:crawlable`, `front.lcp:*`)
 - Stamp `weeks_observed` (that is **`dit-ingest-diff`** on the parent)
