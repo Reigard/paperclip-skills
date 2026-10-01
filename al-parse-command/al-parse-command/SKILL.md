@@ -108,6 +108,10 @@ Set `role` to `orchestrator` when this agent has **only** the AL bookend skills 
 
    Empty flags mean CMS + front + SEO. Any area flag **limits** the run to the named areas (so `--seo` is SEO only). Combine flags the same way (`--front --seo` is those two, not the full set).
 
+   A flag shaped `name=value` is a modifier, not an area and not a CMS subtype. Do not use it when choosing `cms_subtype`. Keep it only when its area is on: no area flags means every area is on; otherwise the area must be named. Drop a modifier whose area is off.
+
+   `--seo-max-pages=N` is an integer from 0 to 5000. Publish it as `audit.seo_max_pages` when the SEO area is on. `0` means the full sitemap. Omit the field when the flag is absent, out of range, or SEO is off. The orchestrator passes that number to the SEO child as `seo.limits.max_pages`.
+
    | Inbound flags | Areas | CMS subtype | `selected_checks` |
    | --- | --- | --- | --- |
    | *(none)* — audit **All** | `cms` + `front` + `seo` | unset (routine/project default) | CMS check + `frontend-audit` + `seo-baseline` |
